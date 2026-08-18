@@ -81,7 +81,7 @@ func New(config Config) (*Manager, error) {
 		return nil, fmt.Errorf("%w: registrar is nil", ErrInvalidOption)
 	}
 	if err := config.Instance.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: instance: %v", ErrInvalidOption, err)
+		return nil, fmt.Errorf("%w: instance: %w", ErrInvalidOption, err)
 	}
 	if config.PropagationWait < 0 {
 		return nil, fmt.Errorf(

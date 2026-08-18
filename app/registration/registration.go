@@ -29,12 +29,18 @@ var (
 type State string
 
 const (
-	StateNew         State = "new"         // no backend mutation has occurred
-	StateRegistering State = "registering" // Register is in progress
-	StateRegistered  State = "registered"  // the instance is discoverable
-	StateDraining    State = "draining"    // deregistration or propagation wait is in progress
-	StateStopped     State = "stopped"     // the instance is no longer registered
-	StateFailed      State = "failed"      // Register or Drain failed
+	// StateNew means no backend mutation has occurred.
+	StateNew State = "new"
+	// StateRegistering means Register is in progress.
+	StateRegistering State = "registering"
+	// StateRegistered means the instance is discoverable.
+	StateRegistered State = "registered"
+	// StateDraining means deregistration or propagation wait is in progress.
+	StateDraining State = "draining"
+	// StateStopped means the instance is no longer registered.
+	StateStopped State = "stopped"
+	// StateFailed means Register or Drain failed.
+	StateFailed State = "failed"
 )
 
 // Config defines one registration ownership boundary.
@@ -63,7 +69,7 @@ type Description struct {
 // application identity in metadata.
 func BuildInstances(identity service.Identity, services []string, endpoints []string) ([]registry.Instance, error) {
 	if err := identity.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: identity: %v", ErrInvalidOption, err)
+		return nil, fmt.Errorf("%w: identity: %w", ErrInvalidOption, err)
 	}
 	if len(services) == 0 || len(services) > 256 || len(endpoints) == 0 {
 		return nil, fmt.Errorf("%w: services or endpoints are empty or oversized", ErrInvalidOption)
@@ -100,7 +106,7 @@ func BuildInstances(identity service.Identity, services []string, endpoints []st
 		}
 		instance, err := registry.NewInstance(id, serviceName, endpoints, metadata)
 		if err != nil {
-			return nil, fmt.Errorf("%w: service %q: %v", ErrInvalidOption, serviceName, err)
+			return nil, fmt.Errorf("%w: service %q: %w", ErrInvalidOption, serviceName, err)
 		}
 		result = append(result, instance)
 	}
@@ -134,7 +140,7 @@ func New(config Config) (*Manager, error) {
 		return nil, fmt.Errorf("%w: registrar is nil", ErrInvalidOption)
 	}
 	if err := config.Instance.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: instance: %v", ErrInvalidOption, err)
+		return nil, fmt.Errorf("%w: instance: %w", ErrInvalidOption, err)
 	}
 	drainManager, err := drain.New(drain.Config{
 		Registrar:       config.Registrar,
@@ -143,7 +149,7 @@ func New(config Config) (*Manager, error) {
 		Clock:           config.Clock,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: drain: %v", ErrInvalidOption, err)
+		return nil, fmt.Errorf("%w: drain: %w", ErrInvalidOption, err)
 	}
 	return &Manager{
 		name:      name,

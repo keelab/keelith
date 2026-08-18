@@ -6,12 +6,18 @@ import "fmt"
 type State uint8
 
 const (
-	StateNew      State = iota // the application is new and not yet started
-	StateStarting              // the application is starting
-	StateReady                 // the application is ready to serve requests
-	StateDraining              // the application is draining
-	StateStopped               // the application is stopped
-	StateFailed                // the application has failed
+	// StateNew means the application has not started.
+	StateNew State = iota
+	// StateStarting means the application is starting.
+	StateStarting
+	// StateReady means the application is ready to serve requests.
+	StateReady
+	// StateDraining means the application is draining.
+	StateDraining
+	// StateStopped means the application has stopped.
+	StateStopped
+	// StateFailed means the application has failed.
+	StateFailed
 )
 
 // String returns the string representation of the state.

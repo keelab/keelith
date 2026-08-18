@@ -39,7 +39,7 @@ func NewRegistryWithOptions(optionList ...RegistryOption) (*Registry, error) {
 			return nil, fmt.Errorf("%w: registry option %d is nil", ErrInvalid, index)
 		}
 		if err := option.applyRegistry(&options); err != nil {
-			return nil, fmt.Errorf("%w: registry option %d: %v", ErrInvalid, index, err)
+			return nil, fmt.Errorf("%w: registry option %d: %w", ErrInvalid, index, err)
 		}
 	}
 

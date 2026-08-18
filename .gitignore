@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# 编辑器与 IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go 构建与测试产物
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# 本地环境与临时文件
+.env
+.env.*
+!.env.example
+tmp/
+temp/

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/keelab/keelith/security/advisories/new
+    about: 请通过私密安全公告报告漏洞，不要创建公开 Issue。

@@ -1,0 +1,41 @@
+name: 功能建议
+description: 建议新的能力或改进
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景与问题
+      description: 请说明实际使用场景，以及现有能力为什么无法满足需求。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 描述期望的 API、CLI 行为或工作流。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 已考虑的替代方案
+      description: 包括当前使用的临时解决方式。
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: 兼容性影响
+      description: 说明是否可能影响现有公共 API、配置或 CLI 行为。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，未发现相同建议。
+          required: true

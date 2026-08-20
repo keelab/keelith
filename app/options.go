@@ -11,6 +11,8 @@ import (
 	"github.com/keelab/keelith/service"
 )
 
+const defaultStopTimeout = 30 * time.Second
+
 // Lifecycle is an instance-scoped resource initialized before Servers and
 // shut down after Servers. Telemetry providers and connection pools use this
 // contract without making app depend on their concrete packages.
@@ -147,6 +149,11 @@ func WithStopTimeout(timeout time.Duration) Option {
 	})
 }
 
+func defaultOptions() options {
+	return options{
+		stopTimeout: defaultStopTimeout,
+	}
+}
 func isNilServer(component server.Server) bool {
 	if component == nil {
 		return true

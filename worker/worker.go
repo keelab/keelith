@@ -251,7 +251,7 @@ func (w *Worker) dispatch(ctx context.Context, request any) (any, error) {
 	defer cancel()
 	requestInfo, err := operation.NewRequestInfo(w.target)
 	if err != nil {
-		return nil, fmt.Errorf("%w: request info: %v", ErrInvalidOption, err)
+		return nil, fmt.Errorf("%w: request info: %w", ErrInvalidOption, err)
 	}
 	invocationCtx = operation.WithRequestInfo(invocationCtx, requestInfo)
 

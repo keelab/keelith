@@ -107,7 +107,7 @@ func NewRequestInfo(target Operation, optionList ...RequestInfoOption) (RequestI
 			return RequestInfo{}, fmt.Errorf("%w: request info option %d is nil", ErrInvalid, index)
 		}
 		if err := option.applyRequestInfo(&options); err != nil {
-			return RequestInfo{}, fmt.Errorf("%w: request info option %d: %v", ErrInvalid, index, err)
+			return RequestInfo{}, fmt.Errorf("%w: request info option %d: %w", ErrInvalid, index, err)
 		}
 	}
 	return RequestInfo{

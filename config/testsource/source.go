@@ -1,0 +1,104 @@
+// Package testsource provides an in-memory Config Source for tests and local
+// composition.
+package testsource
+
+import (
+	"context"
+	"sync"
+
+	"github.com/keelab/keelith/config"
+)
+
+// Source is an updateable in-memory config.Source.
+type Source struct {
+	mu       sync.Mutex
+	current  config.Snapshot
+	watchers map[*watcher]struct{}
+}
+
+// New creates a Source with initial.
+func New(initial config.Snapshot) *Source {
+	return &Source{
+		current:  initial.Clone(),
+		watchers: make(map[*watcher]struct{}),
+	}
+}
+
+// Load returns the current complete Snapshot.
+func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return config.Snapshot{}, cause
+	}
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	return source.current.Clone(), nil
+}
+
+// Watch creates a watcher for future complete Snapshots.
+func (source *Source) Watch(ctx context.Context) (config.Watcher, error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return nil, cause
+	}
+	watcher := &watcher{
+		source:  source,
+		updates: make(chan config.Snapshot, 1),
+		done:    make(chan struct{}),
+	}
+	source.mu.Lock()
+	source.watchers[watcher] = struct{}{}
+	source.mu.Unlock()
+	return watcher, nil
+}
+
+// Update atomically replaces the current Snapshot and notifies watchers.
+func (source *Source) Update(snapshot config.Snapshot) {
+	update := snapshot.Clone()
+	source.mu.Lock()
+	source.current = update
+	for watcher := range source.watchers {
+		select {
+		case <-watcher.updates:
+		default:
+		}
+		select {
+		case watcher.updates <- update.Clone():
+		default:
+		}
+	}
+	source.mu.Unlock()
+}
+
+// WatcherCount returns the number of currently open watchers.
+func (source *Source) WatcherCount() int {
+	source.mu.Lock()
+	defer source.mu.Unlock()
+	return len(source.watchers)
+}
+
+type watcher struct {
+	source  *Source
+	updates chan config.Snapshot
+	done    chan struct{}
+	once    sync.Once
+}
+
+func (watcher *watcher) Next(ctx context.Context) (config.Snapshot, error) {
+	select {
+	case snapshot := <-watcher.updates:
+		return snapshot.Clone(), nil
+	case <-watcher.done:
+		return config.Snapshot{}, config.ErrWatcherClosed
+	case <-ctx.Done():
+		return config.Snapshot{}, context.Cause(ctx)
+	}
+}
+
+func (watcher *watcher) Close() error {
+	watcher.once.Do(func() {
+		watcher.source.mu.Lock()
+		delete(watcher.source.watchers, watcher)
+		close(watcher.done)
+		watcher.source.mu.Unlock()
+	})
+	return nil
+}

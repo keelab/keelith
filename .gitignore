@@ -21,3 +21,6 @@ coverage.*
 !.env.example
 tmp/
 temp/
+
+
+AGENTS.md

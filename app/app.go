@@ -383,12 +383,10 @@ func terminalState(runContext context.Context, primaryErr error, stopErr error) 
 
 func expectedContextTermination(runContext context.Context, primaryErr error) bool {
 	cause := context.Cause(runContext)
-	switch cause {
-	case context.Canceled, context.DeadlineExceeded:
-		return primaryErr == cause
-	default:
+	if !errors.Is(cause, context.Canceled) && !errors.Is(cause, context.DeadlineExceeded) {
 		return false
 	}
+	return errors.Is(primaryErr, cause)
 }
 
 func serverName(component server.Server) string {

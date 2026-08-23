@@ -1,0 +1,287 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: topologyrevisions.topology.keelith.dev
+  labels:
+    app.kubernetes.io/name: keelith-topology-controller
+    app.kubernetes.io/managed-by: keelith
+spec:
+  group: topology.keelith.dev
+  scope: Namespaced
+  names:
+    plural: topologyrevisions
+    singular: topologyrevision
+    kind: TopologyRevision
+    shortNames: [ktr]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Revision
+          type: integer
+          jsonPath: .status.appliedRevision
+        - name: Epoch
+          type: integer
+          jsonPath: .status.appliedEpoch
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required: [revision, expectedHash, plan, workloads]
+              x-kubernetes-validations:
+                - rule: self.revision >= oldSelf.revision
+                  message: revision cannot decrease
+              properties:
+                revision:
+                  type: integer
+                  format: int64
+                  minimum: 1
+                planName:
+                  type: string
+                  maxLength: 253
+                  pattern: '^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$'
+                expectedHash:
+                  type: string
+                  maxLength: 71
+                  pattern: '^sha256:[0-9a-f]{64}$'
+                signature:
+                  type: string
+                  maxLength: 128
+                plan:
+                  type: object
+                  required: [apiVersion, epoch, placements, components, dependencies]
+                  x-kubernetes-validations:
+                    - rule: '!has(self.traffic) || self.traffic.map(weight, weight.basisPoints).sum() == 10000'
+                      message: traffic must total 10000 basis points
+                    - rule: '!has(self.traffic) || self.traffic.exists(weight, weight.epoch == self.epoch && weight.basisPoints > 0)'
+                      message: current epoch must have positive traffic
+                  properties:
+                    apiVersion:
+                      type: string
+                      enum: [keelith.dev/topology/v1alpha1]
+                    epoch:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                    placements:
+                      type: array
+                      minItems: 1
+                      maxItems: 1024
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 512
+                    components:
+                      type: array
+                      minItems: 1
+                      maxItems: 4096
+                      items:
+                        type: object
+                        required: [id, placement]
+                        properties:
+                          id:
+                            type: string
+                            minLength: 1
+                            maxLength: 512
+                          placement:
+                            type: string
+                            minLength: 1
+                            maxLength: 512
+                    dependencies:
+                      type: array
+                      maxItems: 16384
+                      items:
+                        type: object
+                        required: [source, target, mode]
+                        properties:
+                          source:
+                            type: string
+                            minLength: 1
+                            maxLength: 512
+                          target:
+                            type: string
+                            minLength: 1
+                            maxLength: 512
+                          mode:
+                            type: string
+                            enum: [AUTO, LOCAL, REMOTE]
+                    traffic:
+                      type: array
+                      minItems: 1
+                      maxItems: 64
+                      items:
+                        type: object
+                        required: [epoch, basisPoints]
+                        properties:
+                          epoch:
+                            type: integer
+                            format: int64
+                            minimum: 1
+                          basisPoints:
+                            type: integer
+                            format: int32
+                            minimum: 0
+                            maximum: 10000
+                workloads:
+                  type: array
+                  minItems: 1
+                  maxItems: 1024
+                  items:
+                    type: object
+                    required: [placement, name, image, replicas, containerPort]
+                    x-kubernetes-validations:
+                      - rule: '!has(self.constraint) || !has(self.constraint.region) || has(self.constraint.cluster)'
+                        message: region requires cluster
+                      - rule: '!has(self.constraint) || !has(self.constraint.zone) || has(self.constraint.region)'
+                        message: zone requires region
+                    properties:
+                      placement:
+                        type: string
+                        minLength: 1
+                        maxLength: 63
+                      name:
+                        type: string
+                        minLength: 1
+                        maxLength: 253
+                      image:
+                        type: string
+                        minLength: 1
+                        maxLength: 2048
+                      replicas:
+                        type: integer
+                        format: int32
+                        minimum: 1
+                        maximum: 1000
+                      containerPort:
+                        type: integer
+                        format: int32
+                        minimum: 1
+                        maximum: 65535
+                      healthPort:
+                        type: integer
+                        format: int32
+                        minimum: 0
+                        maximum: 65535
+                      expose:
+                        type: boolean
+                      constraint:
+                        type: object
+                        properties:
+                          cluster:
+                            type: string
+                            maxLength: 63
+                          region:
+                            type: string
+                            maxLength: 63
+                          zone:
+                            type: string
+                            maxLength: 63
+                routes:
+                  type: array
+                  maxItems: 4096
+                  items:
+                    type: object
+                    required: [fromCluster, toCluster]
+                    properties:
+                      fromCluster:
+                        type: string
+                        minLength: 1
+                        maxLength: 63
+                      toCluster:
+                        type: string
+                        minLength: 1
+                        maxLength: 63
+                lifecycle:
+                  type: object
+                  properties:
+                    terminationGraceSeconds:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                      maximum: 3600
+                    endpointDrainSeconds:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                      maximum: 3600
+                    drainTimeoutSeconds:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                      maximum: 3600
+                    minimumReadySeconds:
+                      type: integer
+                      format: int32
+                      minimum: 1
+                      maximum: 3600
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                appliedRevision:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                appliedEpoch:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                appliedHash:
+                  type: string
+                  maxLength: 71
+                managedResources:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  maximum: 2049
+                phase:
+                  type: string
+                  enum: [Pending, Ready, Rejected]
+                conditions:
+                  type: array
+                  maxItems: 8
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys: [type]
+                  items:
+                    type: object
+                    required: [type, status, lastTransitionTime, reason, message]
+                    properties:
+                      type:
+                        type: string
+                        maxLength: 64
+                      status:
+                        type: string
+                        enum: ['True', 'False', Unknown]
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                        maxLength: 64
+                      message:
+                        type: string
+                        maxLength: 128

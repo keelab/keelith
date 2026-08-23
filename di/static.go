@@ -80,7 +80,11 @@ func StaticPlanFromModule[T any](module Module, target StaticTarget) (StaticPlan
 			}
 			return StaticPlan{}, fmt.Errorf("di: provider %q has no static metadata", item.ID)
 		}
-		if provider.supplied || provider.decorator || provider.override || len(provider.outputs) != 1 || provider.outputs[0].group != "" {
+		if provider.supplied ||
+			provider.decorator ||
+			provider.override ||
+			len(provider.outputs) != 1 ||
+			provider.outputs[0].group != "" {
 			return StaticPlan{}, fmt.Errorf("di: provider %q uses unsupported static semantics", item.ID)
 		}
 		if len(provider.static.inputs) != provider.function.NumIn() {
@@ -133,7 +137,10 @@ func providerReturnsCleanup(function reflect.Type) bool {
 // reverse cleanup. All expressions are explicit application-owned Go source;
 // the generator never guesses identifiers from reflection names.
 func GenerateStaticGo(plan StaticPlan) ([]byte, error) {
-	if !validIdentifier(plan.Package) || !validIdentifier(plan.Function) || !strings.HasPrefix(plan.RootType, "*") || plan.RootValue == "" {
+	if !validIdentifier(plan.Package) ||
+		!validIdentifier(plan.Function) ||
+		!strings.HasPrefix(plan.RootType, "*") ||
+		plan.RootValue == "" {
 		return nil, fmt.Errorf("di: invalid static plan")
 	}
 	ordered, err := orderStaticProviders(plan.Providers)
@@ -164,7 +171,9 @@ func GenerateStaticGo(plan StaticPlan) ([]byte, error) {
 	parameters := []string{"ctx context.Context"}
 	seenParameters := make(map[string]struct{}, len(plan.Parameters))
 	for _, parameter := range plan.Parameters {
-		if !validIdentifier(parameter.Name) || strings.TrimSpace(parameter.Type) == "" || strings.TrimSpace(parameter.Binding) == "" {
+		if !validIdentifier(parameter.Name) ||
+			strings.TrimSpace(parameter.Type) == "" ||
+			strings.TrimSpace(parameter.Binding) == "" {
 			return nil, fmt.Errorf("di: invalid static parameter")
 		}
 		if _, duplicate := seenParameters[parameter.Name]; duplicate {
@@ -173,8 +182,21 @@ func GenerateStaticGo(plan StaticPlan) ([]byte, error) {
 		seenParameters[parameter.Name] = struct{}{}
 		parameters = append(parameters, parameter.Name+" "+parameter.Type)
 	}
-	fmt.Fprintf(&output, "func %s(%s) (%s, func(context.Context) error, error) {\n", plan.Function, strings.Join(parameters, ", "), plan.RootType)
-	output.WriteString("\tvar cleanups []func(context.Context) error\n\trollback := func(closeCtx context.Context) error {\n\t\tvar failures []error\n\t\tfor index := len(cleanups)-1; index >= 0; index-- { failures = append(failures, cleanups[index](closeCtx)) }\n\t\treturn errors.Join(failures...)\n\t}\n")
+	fmt.Fprintf(
+		&output,
+		"func %s(%s) (%s, func(context.Context) error, error) {\n",
+		plan.Function,
+		strings.Join(parameters, ", "),
+		plan.RootType,
+	)
+	output.WriteString("\tvar cleanups []func(context.Context) error\n")
+	output.WriteString("\trollback := func(closeCtx context.Context) error {\n")
+	output.WriteString("\t\tvar failures []error\n")
+	output.WriteString("\t\tfor index := len(cleanups)-1; index >= 0; index-- {\n")
+	output.WriteString("\t\t\tfailures = append(failures, cleanups[index](closeCtx))\n")
+	output.WriteString("\t\t}\n")
+	output.WriteString("\t\treturn errors.Join(failures...)\n")
+	output.WriteString("\t}\n")
 	for _, provider := range ordered {
 		arguments := strings.Join(provider.Inputs, ", ")
 		left := provider.Output
@@ -186,7 +208,14 @@ func GenerateStaticGo(plan StaticPlan) ([]byte, error) {
 		}
 		fmt.Fprintf(&output, "\t%s := %s(%s)\n", left, provider.Call, arguments)
 		if provider.Error {
-			fmt.Fprintf(&output, "\tif err != nil { return nil, nil, errors.Join(fmt.Errorf(%s, err), rollback(context.WithoutCancel(ctx))) }\n", strconv.Quote("provide "+provider.ID+": %w"))
+			errorBlock := "\tif err != nil {\n" +
+				"\t\treturn nil, nil, errors.Join(fmt.Errorf(%s, err), rollback(context.WithoutCancel(ctx)))\n" +
+				"\t}\n"
+			fmt.Fprintf(
+				&output,
+				errorBlock,
+				strconv.Quote("provide "+provider.ID+": %w"),
+			)
 		}
 		if provider.Cleanup {
 			output.WriteString("\tif cleanup != nil { cleanups = append(cleanups, cleanup) }\n")

@@ -66,7 +66,13 @@ func NewRuntime(resolver Resolver, options ...Option) (*Runtime, error) {
 // considered. Business failures and cancellation are preserved. Resolver type
 // mismatches and nil reference replacements fail closed while retaining the
 // original dependency error in the returned error chain.
-func Invoke[T any](ctx context.Context, runtime *Runtime, target operation.Operation, request any, invocation Invocation[T]) (Result[T], error) {
+func Invoke[T any](
+	ctx context.Context,
+	runtime *Runtime,
+	target operation.Operation,
+	request any,
+	invocation Invocation[T],
+) (Result[T], error) {
 	if ctx == nil {
 		return Result[T]{}, fmt.Errorf("%w: context is nil", ErrInvalidInvocation)
 	}

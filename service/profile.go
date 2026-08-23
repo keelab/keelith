@@ -96,11 +96,11 @@ func newProfile(name string, bindings []Binding, groups []GroupDescription) (*Pr
 	}
 	httpBundle, err := middleware.CombineBundles(httpBundles...)
 	if err != nil {
-		return nil, fmt.Errorf("profile %q HTTP middleware: %w", name, err)
+		return nil, fmt.Errorf("profile %q http middleware: %w", name, err)
 	}
 	grpcBundle, err := middleware.CombineBundles(grpcBundles...)
 	if err != nil {
-		return nil, fmt.Errorf("profile %q gRPC middleware: %w", name, err)
+		return nil, fmt.Errorf("profile %q grpc middleware: %w", name, err)
 	}
 	return &Profile{
 		name:        normalized,
@@ -170,14 +170,14 @@ func (profile *Profile) GRPCBundle() *middleware.Bundle {
 // RegisterHTTP registers every HTTP-capable binding in declaration order.
 func (profile *Profile) RegisterHTTP(router *transporthttp.Router) error {
 	if profile == nil || router == nil {
-		return fmt.Errorf("%w: profile or HTTP router is nil", ErrInvalidBinding)
+		return fmt.Errorf("%w: profile or http router is nil", ErrInvalidBinding)
 	}
 	for _, binding := range profile.bindings {
 		if binding.registerHTTP == nil {
 			continue
 		}
 		if err := binding.registerHTTP(router); err != nil {
-			return fmt.Errorf("register HTTP service %q: %w", binding.name, err)
+			return fmt.Errorf("register http service %q: %w", binding.name, err)
 		}
 	}
 	return nil
@@ -186,14 +186,14 @@ func (profile *Profile) RegisterHTTP(router *transporthttp.Router) error {
 // RegisterGRPC registers every gRPC-capable binding in declaration order.
 func (profile *Profile) RegisterGRPC(registrar grpc.ServiceRegistrar) error {
 	if profile == nil || registrar == nil {
-		return fmt.Errorf("%w: profile or gRPC registrar is nil", ErrInvalidBinding)
+		return fmt.Errorf("%w: profile or grpc registrar is nil", ErrInvalidBinding)
 	}
 	for _, binding := range profile.bindings {
 		if binding.registerGRPC == nil {
 			continue
 		}
 		if err := binding.registerGRPC(registrar); err != nil {
-			return fmt.Errorf("register gRPC service %q: %w", binding.name, err)
+			return fmt.Errorf("register grpc service %q: %w", binding.name, err)
 		}
 	}
 	return nil

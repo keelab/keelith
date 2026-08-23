@@ -291,7 +291,7 @@ func formatReadyAt(readyAt time.Time) string {
 func requireJSONEnd(decoder *json.Decoder) error {
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("trailing JSON")
+		return fmt.Errorf("trailing json")
 	}
 	return nil
 }

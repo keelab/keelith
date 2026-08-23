@@ -122,7 +122,7 @@ func (surface *Surface) Compose(global *middleware.Bundle) (*middleware.Bundle, 
 // RegisterHTTP registers an HTTP Surface on router.
 func (surface *Surface) RegisterHTTP(router *transporthttp.Router) error {
 	if surface == nil || surface.profile == nil || surface.transport != TransportHTTP {
-		return fmt.Errorf("%w: surface is not HTTP", ErrInvalidBinding)
+		return fmt.Errorf("%w: surface is not http", ErrInvalidBinding)
 	}
 	return surface.profile.RegisterHTTP(router)
 }
@@ -130,7 +130,7 @@ func (surface *Surface) RegisterHTTP(router *transporthttp.Router) error {
 // RegisterGRPC registers a gRPC Surface on registrar.
 func (surface *Surface) RegisterGRPC(registrar grpc.ServiceRegistrar) error {
 	if surface == nil || surface.profile == nil || surface.transport != TransportGRPC {
-		return fmt.Errorf("%w: surface is not gRPC", ErrInvalidBinding)
+		return fmt.Errorf("%w: surface is not grpc", ErrInvalidBinding)
 	}
 	return surface.profile.RegisterGRPC(registrar)
 }

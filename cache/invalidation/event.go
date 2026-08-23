@@ -45,7 +45,10 @@ type Event struct {
 
 // Validate rejects ambiguous namespaces, duplicate keys, and zero versions.
 func (e Event) Validate() error {
-	if e.Schema != SchemaVersion || !validIdentity(e.Namespace, maxNamespaceBytes) || len(e.Entries) == 0 || len(e.Entries) > maxEntries {
+	if e.Schema != SchemaVersion ||
+		!validIdentity(e.Namespace, maxNamespaceBytes) ||
+		len(e.Entries) == 0 ||
+		len(e.Entries) > maxEntries {
 		return fmt.Errorf("%w: event envelope", ErrInvalidEvent)
 	}
 	seen := make(map[string]struct{}, len(e.Entries))

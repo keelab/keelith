@@ -52,7 +52,12 @@ type Resolver interface {
 type ResolverFunc func(context.Context, operation.Operation, any, error) (Replacement, error)
 
 // Resolve implements Resolver.
-func (f ResolverFunc) Resolve(ctx context.Context, target operation.Operation, request any, cause error) (Replacement, error) {
+func (f ResolverFunc) Resolve(
+	ctx context.Context,
+	target operation.Operation,
+	request any,
+	cause error,
+) (Replacement, error) {
 	return f(ctx, target, request, cause)
 }
 

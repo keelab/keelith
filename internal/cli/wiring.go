@@ -17,7 +17,12 @@ type wiringOptions struct {
 
 func newWiringCommand(runtime *commandRuntime) *cobra.Command {
 	command := commandGroup("wiring", "Synchronize, verify, and inspect dependency wiring artifacts")
-	command.AddCommand(newWiringSyncCommand(runtime), newWiringCheckCommand(runtime), newWiringVerifyCommand(runtime), newWiringGraphCommand(runtime))
+	command.AddCommand(
+		newWiringSyncCommand(runtime),
+		newWiringCheckCommand(runtime),
+		newWiringVerifyCommand(runtime),
+		newWiringGraphCommand(runtime),
+	)
 	return command
 }
 
@@ -45,7 +50,9 @@ func newWiringGraphCommand(runtime *commandRuntime) *cobra.Command {
 			if options.format != "text" && options.format != "json" && options.format != "dot" {
 				return fmt.Errorf("--format must be text, json, or dot")
 			}
-			return runCommand(command, runtime, func(ctx context.Context) int { return executeWiringGraph(ctx, options, runtime.stdout, runtime.stderr) })
+			return runCommand(command, runtime, func(ctx context.Context) int {
+				return executeWiringGraph(ctx, options, runtime.stdout, runtime.stderr)
+			})
 		}}
 	bindWiringInputFlags(command, &options)
 	command.Flags().StringVar(&options.format, "format", options.format, "output format: text, json, or dot")
@@ -87,10 +94,19 @@ func executeWiringVerify(ctx context.Context, options wiringOptions, stdout, std
 		return 1
 	}
 	if !canonical {
-		_, _ = fmt.Fprintln(stderr, "keelith wiring verify: dependency manifest is valid but not canonical; regenerate it with the project wiring command")
+		_, _ = fmt.Fprintln(
+			stderr,
+			"keelith wiring verify: dependency manifest is valid but not canonical; regenerate it with the project wiring command",
+		)
 		return 1
 	}
-	_, _ = fmt.Fprintf(stdout, "dependency wiring valid: root=%s providers=%d edges=%d\n", manifest.Description.Root, len(manifest.Description.Providers), len(manifest.Description.Edges))
+	_, _ = fmt.Fprintf(
+		stdout,
+		"dependency wiring valid: root=%s providers=%d edges=%d\n",
+		manifest.Description.Root,
+		len(manifest.Description.Providers),
+		len(manifest.Description.Edges),
+	)
 	return 0
 }
 

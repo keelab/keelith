@@ -25,9 +25,9 @@ const (
 
 var (
 	// ErrCPUAlreadyStarted reports repeated RuntimeCPU Start.
-	ErrCPUAlreadyStarted = errors.New("loadshed: runtime CPU already started")
+	ErrCPUAlreadyStarted = errors.New("loadshed: runtime cpu already started")
 	// ErrCPUUnsupported reports missing or malformed Go runtime CPU metrics.
-	ErrCPUUnsupported = errors.New("loadshed: runtime CPU metrics unsupported")
+	ErrCPUUnsupported = errors.New("loadshed: runtime cpu metrics unsupported")
 )
 
 // CPUState is the observable sampler lifecycle.
@@ -94,14 +94,19 @@ func NewRuntimeCPU(config RuntimeCPUConfig) (*RuntimeCPU, error) {
 		name = defaultCPUComponentName
 	}
 	if rawName != "" && rawName != name || !validCPUName(name) {
-		return nil, fmt.Errorf("%w: CPU component name is invalid", ErrInvalidOption)
+		return nil, fmt.Errorf("%w: cpu component name is invalid", ErrInvalidOption)
 	}
 	interval := config.Interval
 	if interval == 0 {
 		interval = defaultCPUSampleInterval
 	}
 	if interval < minCPUSampleInterval || interval > maxCPUSampleInterval {
-		return nil, fmt.Errorf("%w: CPU sample interval must be between %s and %s", ErrInvalidOption, minCPUSampleInterval, maxCPUSampleInterval)
+		return nil, fmt.Errorf(
+			"%w: cpu sample interval must be between %s and %s",
+			ErrInvalidOption,
+			minCPUSampleInterval,
+			maxCPUSampleInterval,
+		)
 	}
 	return &RuntimeCPU{
 		name:     name,
@@ -128,7 +133,7 @@ func (*RuntimeCPU) Dependencies() []string {
 // Start establishes a cumulative baseline before reporting Running.
 func (r *RuntimeCPU) Start(ctx context.Context) error {
 	if r == nil {
-		return fmt.Errorf("%w: runtime CPU is nil", ErrInvalidOption)
+		return fmt.Errorf("%w: runtime cpu is nil", ErrInvalidOption)
 	}
 	if ctx == nil {
 		return fmt.Errorf("%w: context is nil", ErrInvalidOption)

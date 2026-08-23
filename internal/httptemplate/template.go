@@ -678,7 +678,7 @@ func decodePathSegment(raw string, preserveSlash bool) (string, error) {
 	}
 	result := builder.String()
 	if !utf8.ValidString(result) {
-		return "", fmt.Errorf("http template: path is not valid UTF-8")
+		return "", fmt.Errorf("http template: path is not valid utf-8")
 	}
 	return result, nil
 }

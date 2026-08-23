@@ -31,10 +31,10 @@ func NormalizeClientBaseURL(raw string) (string, error) {
 		parsed.Opaque != "" ||
 		parsed.RawQuery != "" ||
 		parsed.Fragment != "" {
-		return "", fmt.Errorf("%w: unsafe HTTP base URL %q", ErrInvalidCall, raw)
+		return "", fmt.Errorf("%w: unsafe http base url %q", ErrInvalidCall, raw)
 	}
 	if strings.Contains(parsed.Path, "..") {
-		return "", fmt.Errorf("%w: unsafe HTTP base path", ErrInvalidCall)
+		return "", fmt.Errorf("%w: unsafe http base path", ErrInvalidCall)
 	}
 	parsed.Path = strings.TrimSuffix(parsed.Path, "/")
 	parsed.RawPath = strings.TrimSuffix(parsed.RawPath, "/")
@@ -399,7 +399,7 @@ func joinProtoClientURL(baseURL, rawPath string) (*url.URL, error) {
 	combinedRaw := strings.TrimSuffix(base.EscapedPath(), "/") + rawPath
 	combinedPath, err := url.PathUnescape(combinedRaw)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid escaped HTTP path", ErrInvalidCall)
+		return nil, fmt.Errorf("%w: invalid escaped http path", ErrInvalidCall)
 	}
 	base.Path = combinedPath
 	base.RawPath = combinedRaw

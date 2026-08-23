@@ -111,7 +111,7 @@ func wrapProtoBodyField(
 		return nil, nil
 	}
 	if !json.Valid(payload) {
-		return nil, fmt.Errorf("http: proto body field contains invalid JSON")
+		return nil, fmt.Errorf("http: proto body field contains invalid json")
 	}
 	result := append([]byte(nil), payload...)
 	for index := len(path) - 1; index >= 0; index-- {

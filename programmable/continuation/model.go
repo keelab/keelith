@@ -68,7 +68,7 @@ type CallID struct {
 // NewCallID validates and constructs a CallID.
 func NewCallID(value string) (CallID, error) {
 	if !validIdentity(value) {
-		return CallID{}, fmt.Errorf("%w: call ID", ErrInvalidIdentity)
+		return CallID{}, fmt.Errorf("%w: call id", ErrInvalidIdentity)
 	}
 	return CallID{value: value}, nil
 }

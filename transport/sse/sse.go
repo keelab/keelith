@@ -72,7 +72,7 @@ type Request struct {
 // NewRequest validates a Last-Event-ID value.
 func NewRequest(lastEventID string) (Request, error) {
 	if !validID(lastEventID) {
-		return Request{}, fmt.Errorf("%w: invalid Last-Event-ID", ErrInvalid)
+		return Request{}, fmt.Errorf("%w: invalid last-event-id", ErrInvalid)
 	}
 	return Request{lastEventID: lastEventID}, nil
 }
@@ -114,7 +114,7 @@ func NewJSONEvent(
 ) (Event, error) {
 	payload, err := json.Marshal(value)
 	if err != nil {
-		return Event{}, fmt.Errorf("%w: encode JSON data", ErrInvalid)
+		return Event{}, fmt.Errorf("%w: encode json data", ErrInvalid)
 	}
 	return NewEvent(EventSpec{
 		ID: id, Name: name, Data: string(payload), Retry: retry,

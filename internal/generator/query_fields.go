@@ -25,7 +25,7 @@ func httpQueryFields(
 	excluded [][]protoreflect.FieldDescriptor,
 ) ([]httpQueryField, error) {
 	if message == nil {
-		return nil, fmt.Errorf("HTTP query request message is nil")
+		return nil, fmt.Errorf("http query request message is nil")
 	}
 	result := make([]httpQueryField, 0)
 	excludedKeys := make(map[string]struct{}, len(excluded))

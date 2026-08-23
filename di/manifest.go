@@ -57,7 +57,7 @@ func ensureJSONEnd(decoder *json.Decoder) error {
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
 		if err == nil {
-			return fmt.Errorf("di: parse manifest: multiple JSON values")
+			return fmt.Errorf("di: parse manifest: multiple json values")
 		}
 		return fmt.Errorf("di: parse manifest: %w", err)
 	}
@@ -94,10 +94,10 @@ func validateDescription(description Description) error {
 	providers := make(map[string]struct{}, len(description.Providers))
 	for index, provider := range description.Providers {
 		if strings.TrimSpace(provider.ID) == "" || strings.TrimSpace(provider.ID) != provider.ID {
-			return fmt.Errorf("di: manifest provider %d has invalid ID", index)
+			return fmt.Errorf("di: manifest provider %d has invalid id", index)
 		}
 		if _, duplicate := providers[provider.ID]; duplicate {
-			return fmt.Errorf("di: manifest provider ID %q is duplicated", provider.ID)
+			return fmt.Errorf("di: manifest provider id %q is duplicated", provider.ID)
 		}
 		providers[provider.ID] = struct{}{}
 		if strings.TrimSpace(provider.Module) == "" || strings.TrimSpace(provider.Type) == "" {

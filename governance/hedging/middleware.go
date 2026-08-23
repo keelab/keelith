@@ -122,7 +122,13 @@ type result struct {
 	err      error
 }
 
-func invoke(ctx context.Context, request any, next middleware.Handler, resolved policy.HedgingPolicy, clock Clock) (any, error) {
+func invoke(
+	ctx context.Context,
+	request any,
+	next middleware.Handler,
+	resolved policy.HedgingPolicy,
+	clock Clock,
+) (any, error) {
 	callContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan result, resolved.MaxAttempts)

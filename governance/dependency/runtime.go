@@ -295,7 +295,11 @@ func snapshotPolicy(resolver policy.Resolver) middleware.Middleware {
 	}
 }
 
-func dispatchAttempts(resolver policy.Resolver, retryMiddleware middleware.Middleware, hedgingMiddleware middleware.Middleware) middleware.Middleware {
+func dispatchAttempts(
+	resolver policy.Resolver,
+	retryMiddleware middleware.Middleware,
+	hedgingMiddleware middleware.Middleware,
+) middleware.Middleware {
 	return func(next middleware.Handler) middleware.Handler {
 		if next == nil {
 			return invalidHandler("attempt dispatcher next handler is nil")

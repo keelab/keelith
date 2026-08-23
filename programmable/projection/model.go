@@ -25,7 +25,7 @@ const (
 
 var (
 	// ErrInvalidProjectionID reports an empty, unsafe, or unbounded identity.
-	ErrInvalidProjectionID = errors.New("projection: invalid projection ID")
+	ErrInvalidProjectionID = errors.New("projection: invalid projection id")
 	// ErrInvalidSchema reports an incomplete or malformed projection schema.
 	ErrInvalidSchema = errors.New("projection: invalid schema")
 	// ErrInvalidCursor reports an empty, unsafe, or unbounded checkpoint cursor.

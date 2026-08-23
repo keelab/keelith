@@ -19,7 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var errSSEClientClosed = errors.New("http transport: SSE client closed")
+var errSSEClientClosed = errors.New("http transport: sse client closed")
 
 // SSEClientOption configures one outbound SSE subscription.
 type SSEClientOption interface {
@@ -43,7 +43,7 @@ type sseClientOptions struct {
 func WithSSELastEventID(value string) SSEClientOption {
 	return sseClientOptionFunc(func(options *sseClientOptions) error {
 		if !validSSEID(value) {
-			return fmt.Errorf("%w: invalid Last-Event-ID", ErrInvalidSSE)
+			return fmt.Errorf("%w: invalid last-event-id", ErrInvalidSSE)
 		}
 		options.lastEventID = value
 		return nil
@@ -218,7 +218,7 @@ func openProtoSSE[T proto.Message](
 		factory == nil ||
 		target.Transport() != "http" ||
 		target.Kind() != operation.KindServerStream {
-		return nil, fmt.Errorf("%w: invalid Proto SSE call", ErrInvalidCall)
+		return nil, fmt.Errorf("%w: invalid proto sse call", ErrInvalidCall)
 	}
 	options := sseClientOptions{maxEventBytes: defaultSSEEventBytes}
 	for index, option := range optionList {

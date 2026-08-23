@@ -46,7 +46,7 @@ func (c *Coordinator) TryAcquire(ctx context.Context, key string, ttl time.Durat
 		return nil, false, fmt.Errorf("%w: coordinator is nil", coordination.ErrInvalidOption)
 	}
 	if ctx == nil || ttl <= 0 || !validKey(key) {
-		return nil, false, fmt.Errorf("%w: context, key, or TTL", coordination.ErrInvalidOption)
+		return nil, false, fmt.Errorf("%w: context, key, or ttl", coordination.ErrInvalidOption)
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, false, cause

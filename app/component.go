@@ -87,13 +87,23 @@ func sortComponents(components []Component) ([]Component, error) {
 		for dependencyIndex, dependency := range required {
 			name := strings.TrimSpace(dependency)
 			if name == "" || name != dependency {
-				return nil, fmt.Errorf("%w: component %q dependency %d is invalid", ErrInvalidComponentGraph, names[index], dependencyIndex)
+				return nil, fmt.Errorf(
+					"%w: component %q dependency %d is invalid",
+					ErrInvalidComponentGraph,
+					names[index],
+					dependencyIndex,
+				)
 			}
 			if name == names[index] {
 				return nil, fmt.Errorf("%w: component %q depends on itself", ErrInvalidComponentGraph, name)
 			}
 			if _, exists := byName[name]; !exists {
-				return nil, fmt.Errorf("%w: component %q requires unknown component %q", ErrInvalidComponentGraph, names[index], name)
+				return nil, fmt.Errorf(
+					"%w: component %q requires unknown component %q",
+					ErrInvalidComponentGraph,
+					names[index],
+					name,
+				)
 			}
 			if _, duplicate := seen[name]; duplicate {
 				return nil, fmt.Errorf("%w: component %q repeats dependency %q", ErrInvalidComponentGraph, names[index], name)

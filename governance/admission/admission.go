@@ -261,7 +261,9 @@ func (c *Controller) Middleware() middleware.Middleware {
 				return nil, err
 			}
 			for _, category := range policy.Categories {
-				if category.Numerator == category.Denominator || c.random.Uint64N(uint64(category.Denominator)) < uint64(category.Numerator) {
+				dropAll := category.Numerator == category.Denominator
+				sampled := c.random.Uint64N(uint64(category.Denominator)) < uint64(category.Numerator)
+				if dropAll || sampled {
 					c.dropped.Add(1)
 					return nil, ErrDropped
 				}

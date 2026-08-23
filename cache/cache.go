@@ -120,7 +120,13 @@ type Description struct {
 }
 
 // New creates a typed read-through cache.
-func New[T any](backend Backend, codec Codec[T], loader Loader[T], policy Policy, options ...Option) (*Cache[T], error) {
+func New[T any](
+	backend Backend,
+	codec Codec[T],
+	loader Loader[T],
+	policy Policy,
+	options ...Option,
+) (*Cache[T], error) {
 	if isNil(backend) || isNil(codec) || loader == nil {
 		return nil, fmt.Errorf("%w: backend, codec, and loader are required", ErrInvalidOption)
 	}
@@ -427,7 +433,14 @@ func (c *Cache[T]) store(ctx context.Context, key string, value T) error {
 	return nil
 }
 
-func (c *Cache[T]) storeIfCurrent(ctx context.Context, key string, value T, generation uint64, version uint64, versionKnown bool) error {
+func (c *Cache[T]) storeIfCurrent(
+	ctx context.Context,
+	key string,
+	value T,
+	generation uint64,
+	version uint64,
+	versionKnown bool,
+) error {
 	stripe := c.stripe(key)
 	stripe.mu.Lock()
 	defer stripe.mu.Unlock()
@@ -453,7 +466,13 @@ func (c *Cache[T]) storeIfCurrent(ctx context.Context, key string, value T, gene
 	)
 }
 
-func (c *Cache[T]) storeNegativeIfCurrent(ctx context.Context, key string, generation uint64, version uint64, versionKnown bool) error {
+func (c *Cache[T]) storeNegativeIfCurrent(
+	ctx context.Context,
+	key string,
+	generation uint64,
+	version uint64,
+	versionKnown bool,
+) error {
 	stripe := c.stripe(key)
 	stripe.mu.Lock()
 	defer stripe.mu.Unlock()
@@ -484,7 +503,14 @@ func (c *Cache[T]) currentVersion(ctx context.Context, key string) (uint64, bool
 	return version, true, nil
 }
 
-func (c *Cache[T]) storeEnvelopeIfVersion(ctx context.Context, key string, envelope []byte, ttl time.Duration, version uint64, versionKnown bool) error {
+func (c *Cache[T]) storeEnvelopeIfVersion(
+	ctx context.Context,
+	key string,
+	envelope []byte,
+	ttl time.Duration,
+	version uint64,
+	versionKnown bool,
+) error {
 	if c.version == nil {
 		return c.backend.Set(ctx, key, envelope, ttl)
 	}
@@ -564,10 +590,10 @@ func (c *Cache[T]) jitter(ttl time.Duration) time.Duration {
 
 func validatePolicy(policy Policy) error {
 	if policy.TTL <= 0 {
-		return fmt.Errorf("%w: TTL must be positive", ErrInvalidOption)
+		return fmt.Errorf("%w: ttl must be positive", ErrInvalidOption)
 	}
 	if policy.NegativeTTL < 0 {
-		return fmt.Errorf("%w: negative TTL is negative", ErrInvalidOption)
+		return fmt.Errorf("%w: negative ttl is negative", ErrInvalidOption)
 	}
 	if policy.JitterRatio < 0 || policy.JitterRatio >= 1 {
 		return fmt.Errorf("%w: jitter ratio must be in [0, 1)", ErrInvalidOption)

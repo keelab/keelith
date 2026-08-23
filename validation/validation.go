@@ -63,7 +63,10 @@ func New(violations ...Violation) (*Error, error) {
 		violation.Rule = strings.TrimSpace(violation.Rule)
 		violation.Message = strings.TrimSpace(violation.Message)
 
-		if !validViolationText(violation.Field, maxFieldBytes) || !validViolationText(violation.Rule, maxRuleBytes) || !validViolationText(violation.Message, maxMessageBytes) {
+		validField := validViolationText(violation.Field, maxFieldBytes)
+		validRule := validViolationText(violation.Rule, maxRuleBytes)
+		validMessage := validViolationText(violation.Message, maxMessageBytes)
+		if !validField || !validRule || !validMessage {
 			return nil, fmt.Errorf("%w: violation %d is empty, oversized, or malformed", ErrInvalidViolation, index)
 		}
 		snapshot[index] = violation

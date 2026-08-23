@@ -208,7 +208,13 @@ func definitionFromConfig(revision string, value Config) (feature.Definition, er
 			for allocationIndex, configuredAllocation := range configuredRule.Rollout {
 				if configuredAllocation.BasisPoints < 0 ||
 					configuredAllocation.BasisPoints > int(^uint16(0)) {
-					return feature.Definition{}, fmt.Errorf("%w: flag %d rule %d allocation %d basis points are invalid", feature.ErrInvalidDefinition, flagIndex, ruleIndex, allocationIndex)
+					return feature.Definition{}, fmt.Errorf(
+						"%w: flag %d rule %d allocation %d basis points are invalid",
+						feature.ErrInvalidDefinition,
+						flagIndex,
+						ruleIndex,
+						allocationIndex,
+					)
 				}
 				rule.Rollout[allocationIndex] = feature.Allocation{
 					Variation:   configuredAllocation.Variation,

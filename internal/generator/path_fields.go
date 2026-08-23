@@ -104,7 +104,7 @@ func protoDecoderExpression(
 func httpPathBindingSpecs(path string) ([]httpPathBinding, error) {
 	template, err := httptemplate.Parse(path)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP path %q: %w", path, err)
+		return nil, fmt.Errorf("http path %q: %w", path, err)
 	}
 	variables := template.Variables()
 	reservedValues := make(map[string]struct{}, len(variables))
@@ -318,7 +318,7 @@ func httpPathFieldPath(
 	path string,
 ) ([]protoreflect.FieldDescriptor, error) {
 	if message == nil || !validHTTPPathFieldPath(path) {
-		return nil, fmt.Errorf("HTTP path field %q is invalid", path)
+		return nil, fmt.Errorf("http path field %q is invalid", path)
 	}
 	segments := strings.Split(path, ".")
 	descriptor := message.Desc
@@ -336,7 +336,7 @@ func httpPathFieldPath(
 		last := index == len(segments)-1
 		if last {
 			if field.IsList() || field.IsMap() || field.Message() != nil {
-				return nil, fmt.Errorf("HTTP path field %q must be scalar", path)
+				return nil, fmt.Errorf("http path field %q must be scalar", path)
 			}
 			continue
 		}

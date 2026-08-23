@@ -294,7 +294,12 @@ func (r *Runtime) run(ctx context.Context, ready chan<- error) {
 	}
 }
 
-func (r *Runtime) consume(ctx context.Context, session Session, signalReady func(error), snapshotCommitted *bool) (gap bool, progressed bool, resultErr error) {
+func (r *Runtime) consume(
+	ctx context.Context,
+	session Session,
+	signalReady func(error),
+	snapshotCommitted *bool,
+) (gap bool, progressed bool, resultErr error) {
 	var snapshot SnapshotTxn
 	defer func() {
 		if snapshot != nil {
@@ -327,7 +332,10 @@ func (r *Runtime) consume(ctx context.Context, session Session, signalReady func
 			progressed = true
 		case SnapshotChunkFrame:
 			if snapshot == nil || len(current.Mutations) == 0 {
-				return false, progressed, classifiedError(ErrorProtocol, fmt.Errorf("%w: snapshot chunk outside snapshot", ErrInvalidFrame))
+				return false, progressed, classifiedError(
+					ErrorProtocol,
+					fmt.Errorf("%w: snapshot chunk outside snapshot", ErrInvalidFrame),
+				)
 			}
 			for _, mutation := range current.Mutations {
 				if err := snapshot.Stage(mutation); err != nil {
@@ -386,7 +394,10 @@ func (r *Runtime) consume(ctx context.Context, session Session, signalReady func
 			r.observe(ctx, Event{Kind: EventGap})
 			return true, true, nil
 		default:
-			return false, progressed, classifiedError(ErrorProtocol, fmt.Errorf("%w: unsupported frame %T", ErrInvalidFrame, frame))
+			return false, progressed, classifiedError(
+				ErrorProtocol,
+				fmt.Errorf("%w: unsupported frame %T", ErrInvalidFrame, frame),
+			)
 		}
 	}
 }

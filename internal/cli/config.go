@@ -143,7 +143,7 @@ func validateConfigConnection(options configConnectionOptions) error {
 	for _, endpoint := range options.endpoints {
 		parsed, err := url.ParseRequestURI(strings.TrimSpace(endpoint))
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-			return fmt.Errorf("invalid Etcd endpoint %q", endpoint)
+			return fmt.Errorf("invalid etcd endpoint %q", endpoint)
 		}
 		if parsed.Path != "" && parsed.Path != "/" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
 			return fmt.Errorf("etcd endpoint %q must not contain credentials, path, query, or fragment", endpoint)
@@ -154,19 +154,19 @@ func validateConfigConnection(options configConnectionOptions) error {
 		hasTLS = hasTLS || parsed.Scheme == "https"
 		normalized := parsed.String()
 		if _, duplicate := seen[normalized]; duplicate {
-			return fmt.Errorf("duplicate Etcd endpoint %q", endpoint)
+			return fmt.Errorf("duplicate etcd endpoint %q", endpoint)
 		}
 		seen[normalized] = struct{}{}
 	}
 	if hasTLS && options.allowInsecure && len(options.endpoints) > 1 {
 		for _, endpoint := range options.endpoints {
 			if strings.HasPrefix(endpoint, "http://") {
-				return errors.New("HTTP and HTTPS Etcd endpoints cannot be mixed")
+				return errors.New("http and https etcd endpoints cannot be mixed")
 			}
 		}
 	}
 	if strings.TrimSpace(options.prefix) == "" || !strings.HasPrefix(options.prefix, "/") {
-		return errors.New("--prefix must be an absolute Etcd path")
+		return errors.New("--prefix must be an absolute etcd path")
 	}
 	if options.dialTimeout < time.Second || options.dialTimeout > time.Minute {
 		return errors.New("--dial-timeout must be between 1s and 1m")
@@ -181,7 +181,7 @@ func validateConfigConnection(options configConnectionOptions) error {
 		return errors.New("--cert-file and --key-file must be configured together")
 	}
 	if !hasTLS && (options.caFile != "" || options.certFile != "" || options.keyFile != "" || options.serverName != "") {
-		return errors.New("TLS files and --server-name require HTTPS endpoints")
+		return errors.New("tls files and --server-name require https endpoints")
 	}
 	return nil
 }
@@ -191,14 +191,14 @@ func loadConfigTLS(options configConnectionOptions) (*tls.Config, error) {
 	if options.caFile != "" {
 		payload, err := os.ReadFile(options.caFile)
 		if err != nil {
-			return nil, fmt.Errorf("read CA file: %w", err)
+			return nil, fmt.Errorf("read ca file: %w", err)
 		}
 		roots, err := x509.SystemCertPool()
 		if err != nil || roots == nil {
 			roots = x509.NewCertPool()
 		}
 		if !roots.AppendCertsFromPEM(payload) {
-			return nil, errors.New("CA file contains no certificates")
+			return nil, errors.New("ca file contains no certificates")
 		}
 		config.RootCAs = roots
 	}
@@ -252,11 +252,29 @@ func renderConfigResult(writer io.Writer, command, format string, value any) err
 		_, err := fmt.Fprintf(writer, "staged revision=%s format=%s size=%d\n", result.ID, result.Format, result.Size)
 		return err
 	case core.Activation:
-		_, err := fmt.Fprintf(writer, "%s generation=%d revision=%s previous=%s actor=%s reason=%s\n", command, result.Generation, result.Revision, result.Previous, result.Actor, result.Reason)
+		_, err := fmt.Fprintf(
+			writer,
+			"%s generation=%d revision=%s previous=%s actor=%s reason=%s\n",
+			command,
+			result.Generation,
+			result.Revision,
+			result.Previous,
+			result.Actor,
+			result.Reason,
+		)
 		return err
 	case []core.Activation:
 		for _, activation := range result {
-			if _, err := fmt.Fprintf(writer, "generation=%d revision=%s previous=%s activated_at=%s actor=%s reason=%s\n", activation.Generation, activation.Revision, activation.Previous, activation.ActivatedAt.UTC().Format(time.RFC3339), activation.Actor, activation.Reason); err != nil {
+			if _, err := fmt.Fprintf(
+				writer,
+				"generation=%d revision=%s previous=%s activated_at=%s actor=%s reason=%s\n",
+				activation.Generation,
+				activation.Revision,
+				activation.Previous,
+				activation.ActivatedAt.UTC().Format(time.RFC3339),
+				activation.Actor,
+				activation.Reason,
+			); err != nil {
 				return err
 			}
 		}

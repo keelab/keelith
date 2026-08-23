@@ -171,7 +171,14 @@ func (s *Source) Load(ctx context.Context) (config.Snapshot, error) {
 		for existing, previous := range seen {
 			if strings.HasPrefix(existing, normalized+".") ||
 				strings.HasPrefix(normalized, existing+".") {
-				return config.Snapshot{}, fmt.Errorf("%w: %s and %s conflict at %s/%s", ErrPathConflict, previous, entry.key, existing, normalized)
+				return config.Snapshot{}, fmt.Errorf(
+					"%w: %s and %s conflict at %s/%s",
+					ErrPathConflict,
+					previous,
+					entry.key,
+					existing,
+					normalized,
+				)
 			}
 		}
 		seen[normalized] = entry.key

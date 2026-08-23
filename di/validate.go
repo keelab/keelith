@@ -25,7 +25,12 @@ func Validate[T any](modules ...Module) (Description, error) {
 			return fmt.Errorf("%w: %s/%s", ErrMissingProvider, required.module, required.key)
 		}
 		if consumerScope == ApplicationScope && binding.provider.scope == TransientScope {
-			return fmt.Errorf("%w: application provider captures transient %s/%s", ErrScopeViolation, required.module, required.key)
+			return fmt.Errorf(
+				"%w: application provider captures transient %s/%s",
+				ErrScopeViolation,
+				required.module,
+				required.key,
+			)
 		}
 		for _, active := range visiting {
 			if active == required {
@@ -62,8 +67,16 @@ func Validate[T any](modules ...Module) (Description, error) {
 						if field.Type.Kind() != reflect.Slice {
 							return fmt.Errorf("%w: group field %s must be a slice", ErrInvalidProvider, field.Name)
 						}
-						for _, groupBinding := range builder.groups[scopedKey{module: item.module, key: key{typeOf: field.Type.Elem(), group: group}}] {
-							if visitErr := visit(scopedKey{module: groupBinding.provider.module, key: groupBinding.provider.outputs[groupBinding.output]}, item.scope); visitErr != nil {
+						groupKey := scopedKey{
+							module: item.module,
+							key:    key{typeOf: field.Type.Elem(), group: group},
+						}
+						for _, groupBinding := range builder.groups[groupKey] {
+							required := scopedKey{
+								module: groupBinding.provider.module,
+								key:    groupBinding.provider.outputs[groupBinding.output],
+							}
+							if visitErr := visit(required, item.scope); visitErr != nil {
 								return visitErr
 							}
 						}
@@ -137,7 +150,9 @@ func Validate[T any](modules ...Module) (Description, error) {
 	if err := visit(resolvedRoot, ApplicationScope); err != nil {
 		return Description{}, err
 	}
-	sort.Slice(description.Providers, func(i, j int) bool { return description.Providers[i].ID < description.Providers[j].ID })
+	sort.Slice(description.Providers, func(i, j int) bool {
+		return description.Providers[i].ID < description.Providers[j].ID
+	})
 	return describeEdges(description), nil
 }
 
@@ -146,7 +161,17 @@ func staticProviderDescription(item *provider) ProviderDescription {
 	if item.scope == TransientScope {
 		scope = "transient"
 	}
-	description := ProviderDescription{ID: item.module + ":" + item.displayName, Module: item.module, Type: item.outputs[0].typeOf.String(), Name: item.outputs[0].name, Group: item.outputs[0].group, Scope: scope, State: "registered", Decorator: item.decorator, Override: item.override}
+	description := ProviderDescription{
+		ID:        item.module + ":" + item.displayName,
+		Module:    item.module,
+		Type:      item.outputs[0].typeOf.String(),
+		Name:      item.outputs[0].name,
+		Group:     item.outputs[0].group,
+		Scope:     scope,
+		State:     "registered",
+		Decorator: item.decorator,
+		Override:  item.override,
+	}
 	if item.function != nil {
 		for index := 0; index < item.function.NumIn(); index++ {
 			if item.function.In(index) != contextType {

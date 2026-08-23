@@ -93,7 +93,11 @@ func updateLoggingLevel(writer http.ResponseWriter, request *http.Request, confi
 		return
 	}
 	previous := config.Controller.Status()
-	current, err := config.Controller.UpdateLevel(logging.Update{Level: input.Level, ExpectedRevision: input.ExpectedRevision, TTL: ttl})
+	current, err := config.Controller.UpdateLevel(logging.Update{
+		Level:            input.Level,
+		ExpectedRevision: input.ExpectedRevision,
+		TTL:              ttl,
+	})
 	if err != nil {
 		_ = config.Audit.Record(request.Context(), audit.Event{
 			Actor: principal.Subject, Action: "logging.level.update", ResourceType: "logging",

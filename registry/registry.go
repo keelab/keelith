@@ -141,7 +141,10 @@ func (i Instance) Validate() error {
 
 // Equal reports whether two immutable Instances have identical content.
 func (i Instance) Equal(other Instance) bool {
-	if i.id != other.id || i.service != other.service || len(i.endpoints) != len(other.endpoints) || len(i.metadata) != len(other.metadata) {
+	if i.id != other.id ||
+		i.service != other.service ||
+		len(i.endpoints) != len(other.endpoints) ||
+		len(i.metadata) != len(other.metadata) {
 		return false
 	}
 
@@ -254,7 +257,12 @@ func (s Snapshot) Validate() error {
 
 func normalizeEndpoint(endpoint string) (string, error) {
 	parsed, err := url.Parse(endpoint)
-	if err != nil || parsed.Scheme == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Host == "" && parsed.Path == "" {
+	if err != nil ||
+		parsed.Scheme == "" ||
+		parsed.User != nil ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" ||
+		parsed.Host == "" && parsed.Path == "" {
 		return "", fmt.Errorf("%w: endpoint %q", ErrInvalidInstance, endpoint)
 	}
 	parsed.Scheme = strings.ToLower(parsed.Scheme)

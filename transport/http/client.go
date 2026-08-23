@@ -110,10 +110,10 @@ func WithClientMaxHeaderBytes(maxBytes int) ClientOption {
 func WithClientTLS(config *tls.Config) ClientOption {
 	return clientOptionFunc(func(options *clientOptions) error {
 		if config == nil {
-			return fmt.Errorf("TLS config is nil")
+			return fmt.Errorf("tls config is nil")
 		}
 		if config.MinVersion < tls.VersionTLS12 {
-			return fmt.Errorf("TLS minimum version must be 1.2 or newer")
+			return fmt.Errorf("tls minimum version must be 1.2 or newer")
 		}
 		options.tlsConfig = config.Clone()
 		return nil
@@ -145,7 +145,7 @@ type Client struct {
 // NewClient constructs a Client around an explicit standard HTTP client.
 func NewClient(c *nethttp.Client, optionList ...ClientOption) (*Client, error) {
 	if c == nil {
-		return nil, fmt.Errorf("%w: HTTP client is nil", ErrInvalidOption)
+		return nil, fmt.Errorf("%w: http client is nil", ErrInvalidOption)
 	}
 	options := clientOptions{
 		maxResponseBytes: defaultMaxResponseBytes,
@@ -362,7 +362,7 @@ func selectedEndpoint(node selector.Node) (*url.URL, error) {
 		endpoint.Fragment != "" ||
 		endpoint.RawPath != "" ||
 		endpoint.Path != "" && endpoint.Path != "/" {
-		return nil, fmt.Errorf("unsafe HTTP endpoint %q", node.Endpoint())
+		return nil, fmt.Errorf("unsafe http endpoint %q", node.Endpoint())
 	}
 	return endpoint, nil
 }

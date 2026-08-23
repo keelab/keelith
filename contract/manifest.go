@@ -223,7 +223,11 @@ func Validate(manifest Manifest) error {
 			if methodCount > maxMethods {
 				return invalid("method count exceeds %d", maxMethods)
 			}
-			if !validIdentity(method.Name) || !validOperation(method.Operation) || !validIdentity(method.Input) || !validIdentity(method.Output) || !validKind(method.Kind) {
+			if !validIdentity(method.Name) ||
+				!validOperation(method.Operation) ||
+				!validIdentity(method.Input) ||
+				!validIdentity(method.Output) ||
+				!validKind(method.Kind) {
 				return invalid("service %q contains a malformed method", service.Name)
 			}
 			if _, duplicate := methodNames[method.Name]; duplicate {
@@ -265,7 +269,13 @@ func Validate(manifest Manifest) error {
 }
 
 func validateContinuation(rule Continuation) error {
-	if !validIdentity(rule.MachineVersion) || rule.InlineBudgetMillis < minInlineBudgetMillis || rule.InlineBudgetMillis > maxInlineBudgetMillis || rule.RetentionSeconds < minRetentionSeconds || rule.RetentionSeconds > maxRetentionSeconds || rule.MaxPayloadBytes < minContinuationPayloadBytes || rule.MaxPayloadBytes > maxContinuationPayloadBytes {
+	if !validIdentity(rule.MachineVersion) ||
+		rule.InlineBudgetMillis < minInlineBudgetMillis ||
+		rule.InlineBudgetMillis > maxInlineBudgetMillis ||
+		rule.RetentionSeconds < minRetentionSeconds ||
+		rule.RetentionSeconds > maxRetentionSeconds ||
+		rule.MaxPayloadBytes < minContinuationPayloadBytes ||
+		rule.MaxPayloadBytes > maxContinuationPayloadBytes {
 		return invalid("continuation identity or budget is malformed")
 	}
 	return nil
@@ -277,7 +287,11 @@ func validateProjections(projections []Projection) error {
 	}
 	identities := make(map[string]struct{}, len(projections))
 	for _, projection := range projections {
-		if !validIdentity(projection.ID) || !validIdentity(projection.Message) || projection.SchemaMajor == 0 || len(projection.KeyFields) == 0 || len(projection.KeyFields) > 8 {
+		if !validIdentity(projection.ID) ||
+			!validIdentity(projection.Message) ||
+			projection.SchemaMajor == 0 ||
+			len(projection.KeyFields) == 0 ||
+			len(projection.KeyFields) > 8 {
 			return invalid("projection is malformed")
 		}
 		if _, duplicate := identities[projection.ID]; duplicate {
@@ -433,7 +447,10 @@ func ValidateDescription(description Description) error {
 		}
 	}
 	for _, service := range description.Services {
-		if !validIdentity(service.Name) || service.HTTPRoutes < 0 || len(service.Operations) > maxMethods || len(service.Transports) > 16 {
+		if !validIdentity(service.Name) ||
+			service.HTTPRoutes < 0 ||
+			len(service.Operations) > maxMethods ||
+			len(service.Transports) > 16 {
 			return invalid("diagnostic service is malformed")
 		}
 		for _, operation := range service.Operations {
@@ -483,12 +500,20 @@ func validateDependencies(dependencies []Dependency, knownOperations map[string]
 		return invalid("dependency count exceeds %d", maxDependencies)
 	}
 	for _, dependency := range dependencies {
-		if !validDependencyKind(dependency.Kind) || !validDependencyBinding(dependency.Binding) || !validIdentity(dependency.Transport) || !validIdentity(dependency.Service) || !validIdentity(dependency.Reason) || len(dependency.Operations) == 0 || len(dependency.Operations) > maxMethods {
+		if !validDependencyKind(dependency.Kind) ||
+			!validDependencyBinding(dependency.Binding) ||
+			!validIdentity(dependency.Transport) ||
+			!validIdentity(dependency.Service) ||
+			!validIdentity(dependency.Reason) ||
+			len(dependency.Operations) == 0 ||
+			len(dependency.Operations) > maxMethods {
 			return invalid("dependency is malformed")
 		}
 		hasGoMetadata := dependency.GoImportPath != "" || dependency.GoPackage != "" || dependency.GoName != ""
 		if hasGoMetadata &&
-			(!validGoImportPath(dependency.GoImportPath) || !token.IsIdentifier(dependency.GoPackage) || !token.IsIdentifier(dependency.GoName)) {
+			(!validGoImportPath(dependency.GoImportPath) ||
+				!token.IsIdentifier(dependency.GoPackage) ||
+				!token.IsIdentifier(dependency.GoName)) {
 			return invalid("dependency Go binding metadata is malformed")
 		}
 		if dependency.Kind == DependencyDeclared && !hasGoMetadata {
@@ -563,8 +588,11 @@ func validateHTTP(binding HTTPBinding) error {
 }
 
 func validateHTTPLeaf(binding HTTPBinding) error {
-	if !validHTTPMethod(binding.Method) || !validHTTPPath(binding.Path) || !validHTTPBody(binding.Body) || binding.ResponseBody != "" &&
-		!validHTTPResponseBodyPath(binding.ResponseBody) {
+	if !validHTTPMethod(binding.Method) ||
+		!validHTTPPath(binding.Path) ||
+		!validHTTPBody(binding.Body) ||
+		binding.ResponseBody != "" &&
+			!validHTTPResponseBodyPath(binding.ResponseBody) {
 		return invalid("HTTP binding is malformed")
 	}
 	if (binding.Method == "GET" || binding.Method == "DELETE" || binding.Method == "HEAD") && binding.Body != "" {
@@ -641,7 +669,11 @@ func validOperation(value string) bool {
 }
 
 func validSource(value string) bool {
-	return validIdentity(value) && !strings.HasPrefix(value, "/") && path.Clean(value) == value && value != "." && !strings.HasPrefix(value, "../")
+	return validIdentity(value) &&
+		!strings.HasPrefix(value, "/") &&
+		path.Clean(value) == value &&
+		value != "." &&
+		!strings.HasPrefix(value, "../")
 }
 
 func validGoImportPath(value string) bool {

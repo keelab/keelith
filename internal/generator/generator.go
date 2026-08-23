@@ -848,7 +848,7 @@ func validateHTTPMapping(
 	if rule.ResponseBody != "" {
 		if _, err := httpResponseBodyField(method.Output, rule.ResponseBody); err != nil {
 			return fmt.Errorf(
-				"HTTP mapping on %s: %w",
+				"http mapping on %s: %w",
 				method.Desc.FullName(),
 				err,
 			)
@@ -856,7 +856,7 @@ func validateHTTPMapping(
 	}
 	pathBindings, err := httpPathBindings(method.Input, rule.Path)
 	if err != nil {
-		return fmt.Errorf("HTTP mapping on %s: %w", method.Desc.FullName(), err)
+		return fmt.Errorf("http mapping on %s: %w", method.Desc.FullName(), err)
 	}
 	excluded := make(
 		[][]protoreflect.FieldDescriptor,
@@ -883,7 +883,7 @@ func validateHTTPMapping(
 		bodyPath, bodyErr := httpBodyFieldPath(method.Input, rule.Body)
 		if bodyErr != nil {
 			return fmt.Errorf(
-				"HTTP mapping on %s: %w",
+				"http mapping on %s: %w",
 				method.Desc.FullName(),
 				bodyErr,
 			)
@@ -906,7 +906,7 @@ func validateHTTPMapping(
 		excluded = append(excluded, bodyPath)
 	}
 	if _, err := httpQueryFields(method.Input, excluded); err != nil {
-		return fmt.Errorf("HTTP mapping on %s: %w", method.Desc.FullName(), err)
+		return fmt.Errorf("http mapping on %s: %w", method.Desc.FullName(), err)
 	}
 	return nil
 }

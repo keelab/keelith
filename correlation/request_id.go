@@ -22,7 +22,7 @@ const (
 )
 
 // ErrInvalidRequestID reports an empty, oversized, ambiguous, or malformed ID.
-var ErrInvalidRequestID = errors.New("correlation: invalid request ID")
+var ErrInvalidRequestID = errors.New("correlation: invalid request id")
 
 type requestIDContextKey struct{}
 

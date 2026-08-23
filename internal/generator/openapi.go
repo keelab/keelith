@@ -100,7 +100,7 @@ func generateOpenAPI(
 	for _, service := range file.Services {
 		mappings, err := serviceHTTPMappings(service)
 		if err != nil {
-			return fmt.Errorf("OpenAPI: %w", err)
+			return fmt.Errorf("openapi: %w", err)
 		}
 		for _, mapping := range mappings {
 			for bindingIndex, rule := range mapping.rules {
@@ -110,7 +110,7 @@ func generateOpenAPI(
 					rule.Path,
 				)
 				if err != nil {
-					return fmt.Errorf("OpenAPI: %w", err)
+					return fmt.Errorf("openapi: %w", err)
 				}
 				openAPIPathValue := openAPIHTTPRoutePath(rule.Path, pathBindings)
 				path := document.Paths[openAPIPathValue]
@@ -155,7 +155,7 @@ func generateOpenAPI(
 	}
 	payload, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
-		return fmt.Errorf("generator: encode OpenAPI: %w", err)
+		return fmt.Errorf("generator: encode openapi: %w", err)
 	}
 	payload = append(payload, '\n')
 	output := plugin.NewGeneratedFile(

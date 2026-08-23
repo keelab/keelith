@@ -41,7 +41,8 @@ func rootsModule[T RootSet](modules []Module) (Module, error) {
 	if typeOf.Kind() != reflect.Struct || !embedsMarker(typeOf, reflect.TypeOf(Roots{})) {
 		return Module{}, fmt.Errorf("%w: root set must embed di.Roots", ErrInvalidModule)
 	}
-	constructor := reflect.MakeFunc(reflect.FuncOf(rootFieldTypes(typeOf), []reflect.Type{typeOf}, false), func(values []reflect.Value) []reflect.Value {
+	rootFunc := reflect.FuncOf(rootFieldTypes(typeOf), []reflect.Type{typeOf}, false)
+	constructor := reflect.MakeFunc(rootFunc, func(values []reflect.Value) []reflect.Value {
 		result := reflect.New(typeOf).Elem()
 		valueIndex := 0
 		for index := 0; index < typeOf.NumField(); index++ {

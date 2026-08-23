@@ -59,7 +59,7 @@ func (group Group) RequireHTTP(capabilities ...Capability) Group {
 	result := group.clone()
 	normalized, err := normalizeCapabilities(capabilities)
 	if err != nil {
-		result.err = errors.Join(result.err, fmt.Errorf("required HTTP capabilities: %w", err))
+		result.err = errors.Join(result.err, fmt.Errorf("required http capabilities: %w", err))
 		return result
 	}
 	result.requiredHTTP = append(result.requiredHTTP, normalized...)
@@ -72,7 +72,7 @@ func (group Group) RequireGRPC(capabilities ...Capability) Group {
 	result := group.clone()
 	normalized, err := normalizeCapabilities(capabilities)
 	if err != nil {
-		result.err = errors.Join(result.err, fmt.Errorf("required gRPC capabilities: %w", err))
+		result.err = errors.Join(result.err, fmt.Errorf("required grpc capabilities: %w", err))
 		return result
 	}
 	result.requiredGRPC = append(result.requiredGRPC, normalized...)
@@ -154,40 +154,40 @@ func (group Group) appendProfile(entries *profileEntries) error {
 	var err error
 	normalized.requiredHTTP, err = normalizeDeclaredCapabilities(group.requiredHTTP)
 	if err != nil {
-		return fmt.Errorf("%w: group %q required HTTP capabilities: %w", ErrInvalidGroup, group.name, err)
+		return fmt.Errorf("%w: group %q required http capabilities: %w", ErrInvalidGroup, group.name, err)
 	}
 	normalized.requiredGRPC, err = normalizeDeclaredCapabilities(group.requiredGRPC)
 	if err != nil {
-		return fmt.Errorf("%w: group %q required gRPC capabilities: %w", ErrInvalidGroup, group.name, err)
+		return fmt.Errorf("%w: group %q required grpc capabilities: %w", ErrInvalidGroup, group.name, err)
 	}
 	normalized.httpCapabilities, err = normalizeDeclaredCapabilities(group.httpCapabilities)
 	if err != nil {
-		return fmt.Errorf("%w: group %q provided HTTP capabilities: %w", ErrInvalidGroup, group.name, err)
+		return fmt.Errorf("%w: group %q provided http capabilities: %w", ErrInvalidGroup, group.name, err)
 	}
 	normalized.grpcCapabilities, err = normalizeDeclaredCapabilities(group.grpcCapabilities)
 	if err != nil {
-		return fmt.Errorf("%w: group %q provided gRPC capabilities: %w", ErrInvalidGroup, group.name, err)
+		return fmt.Errorf("%w: group %q provided grpc capabilities: %w", ErrInvalidGroup, group.name, err)
 	}
 	entries.groups[group.name] = struct{}{}
 	hasHTTP, hasGRPC := groupTransports(group.bindings)
 	if hasHTTP {
 		if err := validateRequiredCapabilities(normalized.requiredHTTP, normalized.httpCapabilities); err != nil {
-			return fmt.Errorf("%w: group %q HTTP capabilities: %w", ErrInvalidGroup, group.name, err)
+			return fmt.Errorf("%w: group %q http capabilities: %w", ErrInvalidGroup, group.name, err)
 		}
 	}
 	if hasGRPC {
 		if err := validateRequiredCapabilities(normalized.requiredGRPC, normalized.grpcCapabilities); err != nil {
-			return fmt.Errorf("%w: group %q gRPC capabilities: %w", ErrInvalidGroup, group.name, err)
+			return fmt.Errorf("%w: group %q grpc capabilities: %w", ErrInvalidGroup, group.name, err)
 		}
 	}
 
 	httpBundle, err := middleware.CombineBundles(group.httpBundles...)
 	if err != nil {
-		return fmt.Errorf("%w: group %q HTTP middleware: %w", ErrInvalidGroup, group.name, err)
+		return fmt.Errorf("%w: group %q http middleware: %w", ErrInvalidGroup, group.name, err)
 	}
 	grpcBundle, err := middleware.CombineBundles(group.grpcBundles...)
 	if err != nil {
-		return fmt.Errorf("%w: group %q gRPC middleware: %w", ErrInvalidGroup, group.name, err)
+		return fmt.Errorf("%w: group %q grpc middleware: %w", ErrInvalidGroup, group.name, err)
 	}
 	for index, binding := range group.bindings {
 		derived, err := binding.withGroup(group.name, httpBundle, grpcBundle)
@@ -261,11 +261,11 @@ func (binding Binding) withGroup(
 			httpBundle,
 		)
 		if err != nil {
-			return Binding{}, fmt.Errorf("HTTP middleware: %w", err)
+			return Binding{}, fmt.Errorf("http middleware: %w", err)
 		}
 		combined, err := middleware.CombineBundles(scoped, binding.httpBundle)
 		if err != nil {
-			return Binding{}, fmt.Errorf("HTTP middleware: %w", err)
+			return Binding{}, fmt.Errorf("http middleware: %w", err)
 		}
 		result.httpBundle = combined
 	}
@@ -276,11 +276,11 @@ func (binding Binding) withGroup(
 			grpcBundle,
 		)
 		if err != nil {
-			return Binding{}, fmt.Errorf("gRPC middleware: %w", err)
+			return Binding{}, fmt.Errorf("grpc middleware: %w", err)
 		}
 		combined, err := middleware.CombineBundles(scoped, binding.grpcBundle)
 		if err != nil {
-			return Binding{}, fmt.Errorf("gRPC middleware: %w", err)
+			return Binding{}, fmt.Errorf("grpc middleware: %w", err)
 		}
 		result.grpcBundle = combined
 	}

@@ -57,7 +57,7 @@ func JSONToQuery(kind QueryKind, payload []byte) (string, error) {
 	case QueryString, QueryIntegerString:
 		var value string
 		if err := json.Unmarshal(payload, &value); err != nil {
-			return "", fmt.Errorf("proto WKT query: decode JSON string: %w", err)
+			return "", fmt.Errorf("proto wkt query: decode json string: %w", err)
 		}
 		if kind == QueryIntegerString && !validInteger(value) {
 			return "", fmt.Errorf("proto WKT query: invalid integer %q", value)
@@ -66,7 +66,7 @@ func JSONToQuery(kind QueryKind, payload []byte) (string, error) {
 	case QueryBool:
 		var value bool
 		if err := json.Unmarshal(payload, &value); err != nil {
-			return "", fmt.Errorf("proto WKT query: decode JSON bool: %w", err)
+			return "", fmt.Errorf("proto wkt query: decode json bool: %w", err)
 		}
 		return strconv.FormatBool(value), nil
 	case QueryNumber:
@@ -115,7 +115,7 @@ func decodeJSONNumber(payload []byte) (string, error) {
 	decoder.UseNumber()
 	var value any
 	if err := decoder.Decode(&value); err != nil {
-		return "", fmt.Errorf("proto WKT query: decode JSON number: %w", err)
+		return "", fmt.Errorf("proto wkt query: decode json number: %w", err)
 	}
 	if err := ensureJSONEnd(decoder); err != nil {
 		return "", err
@@ -128,15 +128,15 @@ func decodeJSONNumber(payload []byte) (string, error) {
 			return typed, nil
 		}
 	}
-	return "", fmt.Errorf("proto WKT query: JSON value is not a number")
+	return "", fmt.Errorf("proto wkt query: json value is not a number")
 }
 
 func ensureJSONEnd(decoder *json.Decoder) error {
 	var extra any
 	if err := decoder.Decode(&extra); err == nil {
-		return fmt.Errorf("proto WKT query: JSON value has trailing content")
+		return fmt.Errorf("proto wkt query: json value has trailing content")
 	} else if err != io.EOF {
-		return fmt.Errorf("proto WKT query: decode trailing JSON: %w", err)
+		return fmt.Errorf("proto wkt query: decode trailing json: %w", err)
 	}
 	return nil
 }

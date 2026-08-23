@@ -242,7 +242,12 @@ func nodesFromSnapshot(snapshot registry.Snapshot, scheme string) ([]Node, error
 	return nodes, nil
 }
 
-func eligibleNodes(ctx context.Context, operationID operation.Operation, nodes []Node, settings settings) ([]Node, error) {
+func eligibleNodes(
+	ctx context.Context,
+	operationID operation.Operation,
+	nodes []Node,
+	settings settings,
+) ([]Node, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}

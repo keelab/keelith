@@ -383,7 +383,13 @@ func (component *Component[T]) restartChanges(current, next T) []string {
 	return changed
 }
 
-func collectRestartChanges(current reflect.Value, next reflect.Value, path string, reloadable map[string]struct{}, changed *[]string) {
+func collectRestartChanges(
+	current reflect.Value,
+	next reflect.Value,
+	path string,
+	reloadable map[string]struct{},
+	changed *[]string,
+) {
 	if reflect.DeepEqual(current.Interface(), next.Interface()) {
 		return
 	}

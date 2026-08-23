@@ -256,7 +256,7 @@ func validateKafkaProducerComponentConfig(config kafkaProducerYAMLConfig) error 
 		seen[broker] = struct{}{}
 	}
 	if config.ClientID != "" && !validNormalizedIdentity(config.ClientID, 256) {
-		return fmt.Errorf("client ID is invalid")
+		return fmt.Errorf("client id is invalid")
 	}
 	if config.MaxHeaders != 0 &&
 		(config.MaxHeaders < 1 || config.MaxHeaders > componentMaxKafkaHeaders) {
@@ -307,7 +307,7 @@ func validateKafkaConsumerComponentConfig(config kafkaConsumerYAMLConfig) error 
 
 func validateKafkaSecurityComponentConfig(config kafkaSecurityYAMLConfig) error {
 	if config.TLS.Enabled == config.AllowInsecure {
-		return fmt.Errorf("exactly one of TLS or allow-insecure must be selected")
+		return fmt.Errorf("exactly one of tls or allow-insecure must be selected")
 	}
 	if config.TLS.ServerName != "" &&
 		!validNormalizedIdentity(config.TLS.ServerName, 253) {
@@ -322,12 +322,12 @@ func validateKafkaSecurityComponentConfig(config kafkaSecurityYAMLConfig) error 
 		}
 	}
 	if config.TLS.MutualTLS && config.TLS.BundleReference == "" {
-		return fmt.Errorf("mTLS requires an atomic TLS bundle reference")
+		return fmt.Errorf("mtls requires an atomic tls bundle reference")
 	}
 	if !config.TLS.Enabled &&
 		(config.TLS.BundleReference != "" || config.TLS.ServerName != "" ||
 			config.TLS.MutualTLS) {
-		return fmt.Errorf("disabled TLS contains active settings")
+		return fmt.Errorf("disabled tls contains active settings")
 	}
 	if config.SASL == nil {
 		return nil

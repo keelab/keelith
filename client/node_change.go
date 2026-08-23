@@ -23,13 +23,13 @@ type NodeUpdate struct {
 }
 
 // Previous returns the instance before the accepted snapshot.
-func (update NodeUpdate) Previous() registry.Instance {
-	return update.previous.Clone()
+func (u NodeUpdate) Previous() registry.Instance {
+	return u.previous.Clone()
 }
 
 // Current returns the instance in the accepted snapshot.
-func (update NodeUpdate) Current() registry.Instance {
-	return update.current.Clone()
+func (u NodeUpdate) Current() registry.Instance {
+	return u.current.Clone()
 }
 
 // NodeChange is an immutable, revisioned Router topology update.
@@ -94,10 +94,10 @@ func (n NodeChange) Added() []registry.Instance {
 // Updated returns instances whose endpoints or metadata changed.
 func (n NodeChange) Updated() []NodeUpdate {
 	result := make([]NodeUpdate, len(n.updated))
-	for index, update := range n.updated {
+	for index, u := range n.updated {
 		result[index] = NodeUpdate{
-			previous: update.previous.Clone(),
-			current:  update.current.Clone(),
+			previous: u.previous.Clone(),
+			current:  u.current.Clone(),
 		}
 	}
 	return result

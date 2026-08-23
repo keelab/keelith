@@ -204,17 +204,17 @@ func NewManagedDependencyFactory(
 
 // New creates one managed dependency with a distinct Router, selector,
 // standard client, and transport lifecycle.
-func (factory *ManagedDependencyFactory) New(
+func (f *ManagedDependencyFactory) New(
 	name string,
 	service string,
 ) (*ManagedDependency, error) {
-	if factory == nil {
+	if f == nil {
 		return nil, fmt.Errorf(
 			"%w: managed dependency factory is nil",
 			ErrInvalidOption,
 		)
 	}
-	config := factory.config
+	config := f.config
 	return NewManagedDependency(ManagedDependencyConfig{
 		Name:                  name,
 		Service:               service,
@@ -409,49 +409,49 @@ func NewManagedDependency(
 }
 
 // Name returns the stable App component name.
-func (dependency *ManagedDependency) Name() string {
-	if dependency == nil {
+func (d *ManagedDependency) Name() string {
+	if d == nil {
 		return ""
 	}
-	return dependency.name
+	return d.name
 }
 
 // Service returns the exact Protobuf service identity.
-func (dependency *ManagedDependency) Service() string {
-	if dependency == nil {
+func (d *ManagedDependency) Service() string {
+	if d == nil {
 		return ""
 	}
-	return dependency.service
+	return d.service
 }
 
 // Dependencies returns explicit App component prerequisites.
-func (dependency *ManagedDependency) Dependencies() []string {
-	if dependency == nil {
+func (d *ManagedDependency) Dependencies() []string {
+	if d == nil {
 		return nil
 	}
-	return append([]string(nil), dependency.dependencies...)
+	return append([]string(nil), d.dependencies...)
 }
 
 // Client returns the typed generated-client-compatible HTTP transport.
-func (dependency *ManagedDependency) Client() *Client {
-	if dependency == nil {
+func (d *ManagedDependency) Client() *Client {
+	if d == nil {
 		return nil
 	}
-	return dependency.client
+	return d.client
 }
 
 // BaseURL returns a non-routable URL used only to construct typed requests.
 // Every invocation replaces its scheme and authority with the selected Node.
-func (dependency *ManagedDependency) BaseURL() string {
-	if dependency == nil {
+func (d *ManagedDependency) BaseURL() string {
+	if d == nil {
 		return ""
 	}
-	return dependency.baseURL
+	return d.baseURL
 }
 
 // Start loads the first discovery snapshot before accepting requests.
-func (dependency *ManagedDependency) Start(ctx context.Context) error {
-	if dependency == nil {
+func (d *ManagedDependency) Start(ctx context.Context) error {
+	if d == nil {
 		return fmt.Errorf("%w: managed dependency is nil", ErrInvalidOption)
 	}
 	if ctx == nil {
@@ -460,49 +460,49 @@ func (dependency *ManagedDependency) Start(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	if err := dependency.router.Start(ctx); err != nil {
+	if err := d.router.Start(ctx); err != nil {
 		return fmt.Errorf("http transport: start dependency router: %w", err)
 	}
-	if err := dependency.gate.start(); err != nil {
+	if err := d.gate.start(); err != nil {
 		rollbackCtx, cancel := context.WithTimeout(
 			context.WithoutCancel(ctx),
-			dependency.rollback,
+			d.rollback,
 		)
 		defer cancel()
-		return errors.Join(err, dependency.router.Stop(rollbackCtx))
+		return errors.Join(err, d.router.Stop(rollbackCtx))
 	}
 	return nil
 }
 
 // Stop rejects new requests, drains active RoundTrips, closes idle
 // connections, and finally closes the discovery watcher.
-func (dependency *ManagedDependency) Stop(ctx context.Context) error {
-	if dependency == nil {
+func (d *ManagedDependency) Stop(ctx context.Context) error {
+	if d == nil {
 		return nil
 	}
 	if ctx == nil {
 		return ErrNilContext
 	}
-	transportErr := dependency.gate.stop(ctx)
-	routerErr := dependency.router.Stop(ctx)
+	transportErr := d.gate.stop(ctx)
+	routerErr := d.router.Stop(ctx)
 	return errors.Join(transportErr, routerErr)
 }
 
 // Describe returns detailed local diagnostics without endpoint or metadata
 // values.
-func (dependency *ManagedDependency) Describe() ManagedDependencyDescription {
-	if dependency == nil {
+func (d *ManagedDependency) Describe() ManagedDependencyDescription {
+	if d == nil {
 		return ManagedDependencyDescription{}
 	}
-	state, active := dependency.gate.describe()
+	state, active := d.gate.describe()
 	return ManagedDependencyDescription{
-		Name:            dependency.name,
-		Service:         dependency.service,
+		Name:            d.name,
+		Service:         d.service,
 		State:           state,
-		Schemes:         len(dependency.schemes),
+		Schemes:         len(d.schemes),
 		ActiveRequests:  active,
-		PreferenceTiers: dependency.preference,
-		Router:          dependency.router.Describe(),
+		PreferenceTiers: d.preference,
+		Router:          d.router.Describe(),
 	}
 }
 
@@ -711,25 +711,25 @@ func validateManagedHTTPDependencies(
 ) ([]string, error) {
 	result := make([]string, len(dependencies))
 	seen := make(map[string]struct{}, len(dependencies))
-	for index, dependency := range dependencies {
-		if strings.TrimSpace(dependency) != dependency ||
-			!validManagedHTTPName(dependency) ||
-			name != "" && dependency == name {
+	for index, d := range dependencies {
+		if strings.TrimSpace(d) != d ||
+			!validManagedHTTPName(d) ||
+			name != "" && d == name {
 			return nil, fmt.Errorf(
 				"%w: component dependency %d is malformed",
 				ErrInvalidOption,
 				index,
 			)
 		}
-		if _, duplicate := seen[dependency]; duplicate {
+		if _, duplicate := seen[d]; duplicate {
 			return nil, fmt.Errorf(
 				"%w: component dependency %q is duplicated",
 				ErrInvalidOption,
-				dependency,
+				d,
 			)
 		}
-		seen[dependency] = struct{}{}
-		result[index] = dependency
+		seen[d] = struct{}{}
+		result[index] = d
 	}
 	return result, nil
 }
@@ -738,8 +738,8 @@ func validManagedHTTPName(value string) bool {
 	if value == "" || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

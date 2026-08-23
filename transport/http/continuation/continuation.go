@@ -1097,14 +1097,14 @@ func validContinuationHTTPIdentity(value string, maximum int) bool {
 		return false
 	}
 	for index := range len(value) {
-		character := value[index]
-		if character >= 'a' && character <= 'z' ||
-			character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			character == '-' ||
-			character == '.' ||
-			character == '_' ||
-			character == '~' {
+		ch := value[index]
+		if ch >= 'a' && ch <= 'z' ||
+			ch >= 'A' && ch <= 'Z' ||
+			ch >= '0' && ch <= '9' ||
+			ch == '-' ||
+			ch == '.' ||
+			ch == '_' ||
+			ch == '~' {
 			continue
 		}
 		return false

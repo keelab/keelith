@@ -64,10 +64,10 @@ func validProtoFieldPath(path string) bool {
 		if segment == "" {
 			return false
 		}
-		for index, character := range segment {
-			if unicode.IsControl(character) ||
-				index == 0 && !isProtoFieldStart(character) ||
-				index > 0 && !isProtoFieldContinue(character) {
+		for index, r := range segment {
+			if unicode.IsControl(r) ||
+				index == 0 && !isProtoFieldStart(r) ||
+				index > 0 && !isProtoFieldContinue(r) {
 				return false
 			}
 		}
@@ -75,15 +75,15 @@ func validProtoFieldPath(path string) bool {
 	return true
 }
 
-func isProtoFieldStart(character rune) bool {
-	return character == '_' ||
-		character >= 'a' && character <= 'z' ||
-		character >= 'A' && character <= 'Z'
+func isProtoFieldStart(r rune) bool {
+	return r == '_' ||
+		r >= 'a' && r <= 'z' ||
+		r >= 'A' && r <= 'Z'
 }
 
-func isProtoFieldContinue(character rune) bool {
-	return isProtoFieldStart(character) ||
-		character >= '0' && character <= '9'
+func isProtoFieldContinue(r rune) bool {
+	return isProtoFieldStart(r) ||
+		r >= '0' && r <= '9'
 }
 
 func lookupProtoField(

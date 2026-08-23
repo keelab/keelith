@@ -39,7 +39,7 @@ var (
 // ContinuationClient is the complete outbound client for the versioned
 // continuation HTTP profile.
 type ContinuationClient struct {
-	client    *transporthttp.Client
+	transport *transporthttp.Client
 	baseURL   string
 	start     operation.Operation
 	attach    operation.Operation
@@ -59,10 +59,10 @@ type ContinuationClientStream struct {
 // NewContinuationClient constructs a profile client on an existing Keelith
 // HTTP Client so outbound middleware, metadata, discovery, and TLS are reused.
 func NewContinuationClient(
-	client *transporthttp.Client,
+	c *transporthttp.Client,
 	baseURL string,
 ) (*ContinuationClient, error) {
-	if client == nil {
+	if c == nil {
 		return nil, fmt.Errorf(
 			"%w: continuation client is nil",
 			transporthttp.ErrInvalidCall,
@@ -92,7 +92,7 @@ func NewContinuationClient(
 		return nil, err
 	}
 	return &ContinuationClient{
-		client:    client,
+		transport: c,
 		baseURL:   normalized,
 		start:     start,
 		attach:    attach,
@@ -104,13 +104,13 @@ func NewContinuationClient(
 
 // Start creates one durable call and returns either an accepted or inline
 // terminal response.
-func (client *ContinuationClient) Start(
+func (c *ContinuationClient) Start(
 	ctx context.Context,
 	callID continuation.CallID,
 	target continuation.Operation,
 	input []byte,
 ) (*continuationv1.StartResponse, error) {
-	if err := client.validateCall(ctx, callID, target); err != nil {
+	if err := c.validateCall(ctx, callID, target); err != nil {
 		return nil, err
 	}
 	if len(input) > maxContinuationPayloadBytes {
@@ -123,7 +123,7 @@ func (client *ContinuationClient) Start(
 	}
 	request, err := transporthttp.NewProtoRequest(
 		ctx,
-		client.baseURL,
+		c.baseURL,
 		nethttp.MethodPost,
 		ContinuationRoutePrefix,
 		message,
@@ -134,8 +134,8 @@ func (client *ContinuationClient) Start(
 	}
 	response, err := transporthttp.InvokeProto(
 		ctx,
-		client.client,
-		client.start,
+		c.transport,
+		c.start,
 		request,
 		func() *continuationv1.StartResponse {
 			return &continuationv1.StartResponse{}
@@ -155,12 +155,12 @@ func (client *ContinuationClient) Start(
 }
 
 // Attach opens one validated SSE connection after an exclusive sequence.
-func (client *ContinuationClient) Attach(
+func (c *ContinuationClient) Attach(
 	ctx context.Context,
 	callID continuation.CallID,
 	after uint64,
 ) (*ContinuationClientStream, error) {
-	if client == nil || ctx == nil ||
+	if c == nil || ctx == nil ||
 		!validContinuationHTTPIdentity(
 			callID.String(),
 			maxContinuationCallIDBytes,
@@ -173,7 +173,7 @@ func (client *ContinuationClient) Attach(
 	request, err := nethttp.NewRequestWithContext(
 		ctx,
 		nethttp.MethodGet,
-		client.baseURL+ContinuationRoutePrefix+"/"+
+		c.baseURL+ContinuationRoutePrefix+"/"+
 			callID.String()+"/events",
 		nil,
 	)
@@ -182,7 +182,7 @@ func (client *ContinuationClient) Attach(
 	}
 	request.Header.Set("Accept", "text/event-stream")
 	options := []transporthttp.SSEClientOption{
-		transporthttp.WithSSEClientMaxEventBytes(client.eventSize),
+		transporthttp.WithSSEClientMaxEventBytes(c.eventSize),
 	}
 	if after > 0 {
 		options = append(
@@ -192,8 +192,8 @@ func (client *ContinuationClient) Attach(
 	}
 	stream, err := transporthttp.OpenProtoSSE(
 		ctx,
-		client.client,
-		client.attach,
+		c.transport,
+		c.attach,
 		request,
 		func() *continuationv1.AttachResponse {
 			return &continuationv1.AttachResponse{}
@@ -211,13 +211,13 @@ func (client *ContinuationClient) Attach(
 }
 
 // Signal submits one idempotent external signal.
-func (client *ContinuationClient) Signal(
+func (c *ContinuationClient) Signal(
 	ctx context.Context,
 	callID continuation.CallID,
 	commandID string,
 	payload []byte,
 ) (*continuationv1.SignalResponse, error) {
-	if client == nil || ctx == nil ||
+	if c == nil || ctx == nil ||
 		!validContinuationHTTPIdentity(
 			callID.String(),
 			maxContinuationCallIDBytes,
@@ -241,7 +241,7 @@ func (client *ContinuationClient) Signal(
 	}
 	request, err := transporthttp.NewProtoRequest(
 		ctx,
-		client.baseURL,
+		c.baseURL,
 		nethttp.MethodPost,
 		continuationSignalPattern,
 		message,
@@ -252,8 +252,8 @@ func (client *ContinuationClient) Signal(
 	}
 	response, err := transporthttp.InvokeProto(
 		ctx,
-		client.client,
-		client.signal,
+		c.transport,
+		c.signal,
 		request,
 		func() *continuationv1.SignalResponse {
 			return &continuationv1.SignalResponse{}
@@ -272,12 +272,12 @@ func (client *ContinuationClient) Signal(
 }
 
 // Cancel submits one idempotent cooperative cancellation request.
-func (client *ContinuationClient) Cancel(
+func (c *ContinuationClient) Cancel(
 	ctx context.Context,
 	callID continuation.CallID,
 	commandID string,
 ) (*continuationv1.CancelResponse, error) {
-	if client == nil || ctx == nil ||
+	if c == nil || ctx == nil ||
 		!validContinuationHTTPIdentity(
 			callID.String(),
 			maxContinuationCallIDBytes,
@@ -301,7 +301,7 @@ func (client *ContinuationClient) Cancel(
 	request, err := nethttp.NewRequestWithContext(
 		ctx,
 		nethttp.MethodDelete,
-		client.baseURL+ContinuationRoutePrefix+"/"+callID.String(),
+		c.baseURL+ContinuationRoutePrefix+"/"+callID.String(),
 		bytes.NewReader(payload),
 	)
 	if err != nil {
@@ -311,8 +311,8 @@ func (client *ContinuationClient) Cancel(
 	request.Header.Set("Content-Type", "application/json")
 	response, err := transporthttp.InvokeProto(
 		ctx,
-		client.client,
-		client.cancel,
+		c.transport,
+		c.cancel,
 		request,
 		func() *continuationv1.CancelResponse {
 			return &continuationv1.CancelResponse{}
@@ -332,13 +332,13 @@ func (client *ContinuationClient) Cancel(
 
 // Call starts a fixed durable operation, reconnects Attach after validated
 // frames, and returns the successful terminal payload.
-func (client *ContinuationClient) Call(
+func (c *ContinuationClient) Call(
 	ctx context.Context,
 	callID continuation.CallID,
 	target continuation.Operation,
 	input []byte,
 ) ([]byte, error) {
-	response, err := client.Start(ctx, callID, target, input)
+	response, err := c.Start(ctx, callID, target, input)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +351,7 @@ func (client *ContinuationClient) Call(
 
 	after := response.GetSnapshot().GetSequence()
 	for {
-		stream, attachErr := client.Attach(ctx, callID, after)
+		stream, attachErr := c.Attach(ctx, callID, after)
 		if attachErr != nil {
 			return nil, attachErr
 		}
@@ -453,12 +453,12 @@ func (stream *ContinuationClientStream) Close(ctx context.Context) error {
 	return stream.stream.Close(ctx)
 }
 
-func (client *ContinuationClient) validateCall(
+func (c *ContinuationClient) validateCall(
 	ctx context.Context,
 	callID continuation.CallID,
 	target continuation.Operation,
 ) error {
-	if client == nil || ctx == nil ||
+	if c == nil || ctx == nil ||
 		!validContinuationHTTPIdentity(
 			callID.String(),
 			maxContinuationCallIDBytes,

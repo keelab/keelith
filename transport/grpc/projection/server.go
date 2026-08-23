@@ -189,21 +189,21 @@ func NewServer(
 }
 
 // Register installs the protocol service exactly once.
-func (server *Server) Register(registrar grpc.ServiceRegistrar) error {
-	if server == nil || registrar == nil || server.registered {
+func (s *Server) Register(registrar grpc.ServiceRegistrar) error {
+	if s == nil || registrar == nil || s.registered {
 		return ErrInvalidServer
 	}
-	projectionv1.RegisterProjectionServiceServer(registrar, server)
-	server.registered = true
+	projectionv1.RegisterProjectionServiceServer(registrar, s)
+	s.registered = true
 	return nil
 }
 
 // Subscribe relays one ordered Source session until disconnect or completion.
-func (server *Server) Subscribe(
+func (s *Server) Subscribe(
 	request *projectionv1.SubscribeRequest,
 	stream grpc.ServerStreamingServer[projectionv1.SubscribeResponse],
 ) error {
-	if server == nil || stream == nil {
+	if s == nil || stream == nil {
 		return status.Error(codes.Internal, "projection server unavailable")
 	}
 	subscription, err := requestFromWire(request)
@@ -213,7 +213,7 @@ func (server *Server) Subscribe(
 			"invalid projection subscription",
 		)
 	}
-	principal, authenticated, err := server.authorize(
+	principal, authenticated, err := s.authorize(
 		stream.Context(),
 		subscription.Schema.ID,
 	)
@@ -221,13 +221,13 @@ func (server *Server) Subscribe(
 		return err
 	}
 	var tenant projection.Tenant
-	if server.quota != nil {
+	if s.quota != nil {
 		tenant, err = admittedTenant(principal, authenticated)
 		if err != nil {
 			return status.Error(codes.PermissionDenied, "projection tenant denied")
 		}
 	}
-	registered, exists := server.projections[subscription.Schema.ID]
+	registered, exists := s.projections[subscription.Schema.ID]
 	if !exists {
 		return status.Error(codes.NotFound, "projection not registered")
 	}
@@ -238,8 +238,8 @@ func (server *Server) Subscribe(
 		)
 	}
 	var quotaLease *projection.SessionQuotaLease
-	if server.quota != nil {
-		quotaLease, err = server.quota.AcquireSession(tenant, time.Now().UTC())
+	if s.quota != nil {
+		quotaLease, err = s.quota.AcquireSession(tenant, time.Now().UTC())
 		if err != nil {
 			return admissionStatus(err)
 		}
@@ -270,7 +270,7 @@ func (server *Server) Subscribe(
 				"projection source emitted an invalid frame",
 			)
 		}
-		if proto.Size(encoded) > server.maxFrameBytes {
+		if proto.Size(encoded) > s.maxFrameBytes {
 			return status.Error(
 				codes.ResourceExhausted,
 				"projection frame exceeds server budget",
@@ -278,8 +278,8 @@ func (server *Server) Subscribe(
 		}
 		frameBytes := proto.Size(encoded)
 		var permit *projection.SchedulePermit
-		if server.scheduler != nil {
-			permit, err = server.scheduler.Acquire(
+		if s.scheduler != nil {
+			permit, err = s.scheduler.Acquire(
 				stream.Context(),
 				tenant,
 				frameBytes,
@@ -306,14 +306,14 @@ func (server *Server) Subscribe(
 	}
 }
 
-func (server *Server) authorize(
+func (s *Server) authorize(
 	ctx context.Context,
 	projectionID projection.ProjectionID,
 ) (security.Principal, bool, error) {
-	if server.publicAccess {
+	if s.publicAccess {
 		return security.Principal{}, false, nil
 	}
-	if server.authorizer == nil {
+	if s.authorizer == nil {
 		return security.Principal{}, false,
 			status.Error(codes.PermissionDenied, "projection access denied")
 	}
@@ -342,7 +342,7 @@ func (server *Server) authorize(
 	}
 	decision, err := callAuthorizer(
 		ctx,
-		server.authorizer,
+		s.authorizer,
 		principal,
 		target,
 		AuthorizationRequest{Projection: projectionID},

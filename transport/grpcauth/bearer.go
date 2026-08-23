@@ -316,28 +316,28 @@ func (bearer *Bearer) Description() Description {
 }
 
 // Baseline returns the generation active when the subscription was created.
-func (subscription *Subscription) Baseline() uint64 {
-	if subscription == nil {
+func (s *Subscription) Baseline() uint64 {
+	if s == nil {
 		return 0
 	}
-	return subscription.baseline
+	return s.baseline
 }
 
 // Updates returns a single-slot latest-generation stream.
-func (subscription *Subscription) Updates() <-chan uint64 {
-	if subscription == nil {
+func (s *Subscription) Updates() <-chan uint64 {
+	if s == nil {
 		return nil
 	}
-	return subscription.updates
+	return s.updates
 }
 
 // Close unregisters the subscription. It is safe to call repeatedly.
-func (subscription *Subscription) Close() {
-	if subscription == nil || subscription.bearer == nil {
+func (s *Subscription) Close() {
+	if s == nil || s.bearer == nil {
 		return
 	}
-	subscription.closeOnce.Do(func() {
-		subscription.bearer.removeSubscriber(subscription.id)
+	s.closeOnce.Do(func() {
+		s.bearer.removeSubscriber(s.id)
 	})
 }
 
@@ -457,16 +457,16 @@ func validateToken(value secret.Value, maxBytes int) (string, error) {
 
 func validBearerToken(token string) bool {
 	padding := false
-	for _, character := range token {
-		if character == '=' {
+	for _, r := range token {
+		if r == '=' {
 			padding = true
 			continue
 		}
 		if padding ||
-			(character < 'a' || character > 'z') &&
-				(character < 'A' || character > 'Z') &&
-				(character < '0' || character > '9') &&
-				!strings.ContainsRune("-._~+/", character) {
+			(r < 'a' || r > 'z') &&
+				(r < 'A' || r > 'Z') &&
+				(r < '0' || r > '9') &&
+				!strings.ContainsRune("-._~+/", r) {
 			return false
 		}
 	}

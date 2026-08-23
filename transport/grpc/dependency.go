@@ -143,17 +143,17 @@ func NewManagedDependencyFactory(
 
 // New creates one managed dependency with a distinct Router, Selector,
 // connection pool, and lifecycle.
-func (factory *ManagedDependencyFactory) New(
+func (f *ManagedDependencyFactory) New(
 	name string,
 	service string,
 ) (*ManagedDependency, error) {
-	if factory == nil {
+	if f == nil {
 		return nil, fmt.Errorf(
 			"%w: managed dependency factory is nil",
 			ErrInvalidOption,
 		)
 	}
-	config := factory.config
+	config := f.config
 	return NewManagedDependency(ManagedDependencyConfig{
 		Name:                  name,
 		Service:               service,
@@ -203,9 +203,9 @@ func NewManagedDependency(
 	if err != nil {
 		return nil, err
 	}
-	factory := config.SelectorFactory
-	if factory == nil {
-		factory = defaultSelectorFactory
+	f := config.SelectorFactory
+	if f == nil {
+		f = defaultSelectorFactory
 	}
 	selectorOptions, err := copySelectorOptions(config.SelectorOptions)
 	if err != nil {
@@ -215,7 +215,7 @@ func NewManagedDependency(
 		config.Outbound.SelectorOptions(),
 		selectorOptions...,
 	)
-	selected, err := factory("grpc", selectorOptions...)
+	selected, err := f("grpc", selectorOptions...)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"%w: create selector: %w",
@@ -306,44 +306,44 @@ func NewManagedDependency(
 }
 
 // Name returns the stable App component name.
-func (dependency *ManagedDependency) Name() string {
-	if dependency == nil {
+func (d *ManagedDependency) Name() string {
+	if d == nil {
 		return ""
 	}
-	return dependency.name
+	return d.name
 }
 
 // Service returns the exact Protobuf service identity.
-func (dependency *ManagedDependency) Service() string {
-	if dependency == nil {
+func (d *ManagedDependency) Service() string {
+	if d == nil {
 		return ""
 	}
-	return dependency.service
+	return d.service
 }
 
 // Dependencies returns explicit App component prerequisites such as a
 // provider-owned registry connection.
-func (dependency *ManagedDependency) Dependencies() []string {
-	if dependency == nil {
+func (d *ManagedDependency) Dependencies() []string {
+	if d == nil {
 		return nil
 	}
-	return append([]string(nil), dependency.dependencies...)
+	return append([]string(nil), d.dependencies...)
 }
 
 // ClientConn returns the generated-client-compatible governed transport.
 //
 // It is safe to construct typed clients before Start. Invocations are rejected
 // until the App starts this component.
-func (dependency *ManagedDependency) ClientConn() ggrpc.ClientConnInterface {
-	if dependency == nil {
+func (d *ManagedDependency) ClientConn() ggrpc.ClientConnInterface {
+	if d == nil {
 		return nil
 	}
-	return dependency.client
+	return d.client
 }
 
 // Start loads the first discovery snapshot and then enables pooled calls.
-func (dependency *ManagedDependency) Start(ctx context.Context) error {
-	if dependency == nil {
+func (d *ManagedDependency) Start(ctx context.Context) error {
+	if d == nil {
 		return fmt.Errorf("%w: managed dependency is nil", ErrInvalidOption)
 	}
 	if ctx == nil {
@@ -352,18 +352,18 @@ func (dependency *ManagedDependency) Start(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	if err := dependency.router.Start(ctx); err != nil {
+	if err := d.router.Start(ctx); err != nil {
 		return fmt.Errorf("grpc transport: start dependency router: %w", err)
 	}
-	if err := dependency.connection.Start(ctx); err != nil {
+	if err := d.connection.Start(ctx); err != nil {
 		rollbackCtx, cancel := context.WithTimeout(
 			context.WithoutCancel(ctx),
-			dependency.rollback,
+			d.rollback,
 		)
 		defer cancel()
 		rollbackErr := errors.Join(
-			dependency.connection.Stop(rollbackCtx),
-			dependency.router.Stop(rollbackCtx),
+			d.connection.Stop(rollbackCtx),
+			d.router.Stop(rollbackCtx),
 		)
 		return errors.Join(
 			fmt.Errorf(
@@ -377,29 +377,29 @@ func (dependency *ManagedDependency) Start(ctx context.Context) error {
 }
 
 // Stop drains calls and streams before closing the discovery watcher.
-func (dependency *ManagedDependency) Stop(ctx context.Context) error {
-	if dependency == nil {
+func (d *ManagedDependency) Stop(ctx context.Context) error {
+	if d == nil {
 		return nil
 	}
 	if ctx == nil {
 		return ErrNilContext
 	}
-	connectionErr := dependency.connection.Stop(ctx)
-	routerErr := dependency.router.Stop(ctx)
+	connectionErr := d.connection.Stop(ctx)
+	routerErr := d.router.Stop(ctx)
 	return errors.Join(connectionErr, routerErr)
 }
 
 // Describe returns detailed local diagnostics for the managed path.
-func (dependency *ManagedDependency) Describe() ManagedDependencyDescription {
-	if dependency == nil {
+func (d *ManagedDependency) Describe() ManagedDependencyDescription {
+	if d == nil {
 		return ManagedDependencyDescription{}
 	}
 	return ManagedDependencyDescription{
-		Name:            dependency.name,
-		Service:         dependency.service,
-		PreferenceTiers: dependency.preference,
-		Router:          dependency.router.Describe(),
-		Connection:      dependency.connection.Describe(),
+		Name:            d.name,
+		Service:         d.service,
+		PreferenceTiers: d.preference,
+		Router:          d.router.Describe(),
+		Connection:      d.connection.Describe(),
 	}
 }
 
@@ -430,25 +430,25 @@ func validateComponentDependencies(
 ) ([]string, error) {
 	result := make([]string, len(dependencies))
 	seen := make(map[string]struct{}, len(dependencies))
-	for index, dependency := range dependencies {
-		if strings.TrimSpace(dependency) != dependency ||
-			!validDiscoveryName(dependency) ||
-			dependency == name {
+	for index, d := range dependencies {
+		if strings.TrimSpace(d) != d ||
+			!validDiscoveryName(d) ||
+			d == name {
 			return nil, fmt.Errorf(
 				"%w: component dependency %d is malformed",
 				ErrInvalidOption,
 				index,
 			)
 		}
-		if _, duplicate := seen[dependency]; duplicate {
+		if _, duplicate := seen[d]; duplicate {
 			return nil, fmt.Errorf(
 				"%w: component dependency %q is duplicated",
 				ErrInvalidOption,
-				dependency,
+				d,
 			)
 		}
-		seen[dependency] = struct{}{}
-		result[index] = dependency
+		seen[d] = struct{}{}
+		result[index] = d
 	}
 	return result, nil
 }
@@ -458,24 +458,24 @@ func validateFactoryDependencies(
 ) ([]string, error) {
 	result := make([]string, len(dependencies))
 	seen := make(map[string]struct{}, len(dependencies))
-	for index, dependency := range dependencies {
-		if strings.TrimSpace(dependency) != dependency ||
-			!validDiscoveryName(dependency) {
+	for index, d := range dependencies {
+		if strings.TrimSpace(d) != d ||
+			!validDiscoveryName(d) {
 			return nil, fmt.Errorf(
 				"%w: component dependency %d is malformed",
 				ErrInvalidOption,
 				index,
 			)
 		}
-		if _, duplicate := seen[dependency]; duplicate {
+		if _, duplicate := seen[d]; duplicate {
 			return nil, fmt.Errorf(
 				"%w: component dependency %q is duplicated",
 				ErrInvalidOption,
-				dependency,
+				d,
 			)
 		}
-		seen[dependency] = struct{}{}
-		result[index] = dependency
+		seen[d] = struct{}{}
+		result[index] = d
 	}
 	return result, nil
 }

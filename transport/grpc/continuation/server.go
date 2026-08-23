@@ -151,21 +151,21 @@ func NewServer(
 }
 
 // Register installs ContinuationService exactly once.
-func (server *Server) Register(registrar grpc.ServiceRegistrar) error {
-	if server == nil || registrar == nil || server.registered {
+func (s *Server) Register(registrar grpc.ServiceRegistrar) error {
+	if s == nil || registrar == nil || s.registered {
 		return ErrInvalidServer
 	}
-	continuationv1.RegisterContinuationServiceServer(registrar, server)
-	server.registered = true
+	continuationv1.RegisterContinuationServiceServer(registrar, s)
+	s.registered = true
 	return nil
 }
 
 // Start persists and optionally completes one authorized call inline.
-func (server *Server) Start(
+func (s *Server) Start(
 	ctx context.Context,
 	request *continuationv1.StartRequest,
 ) (*continuationv1.StartResponse, error) {
-	if err := server.validateRequest(ctx, request); err != nil {
+	if err := s.validateRequest(ctx, request); err != nil {
 		return nil, err
 	}
 	callID, err := callIDFromWire(request.GetCallId())
@@ -181,19 +181,19 @@ func (server *Server) Start(
 	}
 	var snapshot continuation.Snapshot
 	if request.GetWorkflowVersion() == "" {
-		snapshot, err = server.service.StartCallInline(
+		snapshot, err = s.service.StartCallInline(
 			ctx,
 			callID,
 			target,
 			request.GetInput(),
-			server.inlineBudget,
+			s.inlineBudget,
 		)
 	} else {
 		version, versionErr := callIDFromWire(request.GetWorkflowVersion())
 		if versionErr != nil {
 			return nil, invalidRequestStatus("INVALID_WORKFLOW_VERSION")
 		}
-		snapshot, err = server.service.StartWorkflow(
+		snapshot, err = s.service.StartWorkflow(
 			ctx,
 			callID,
 			target,
@@ -208,18 +208,18 @@ func (server *Server) Start(
 	if err != nil {
 		return nil, invalidBackendStatus()
 	}
-	if err := server.validateResponse(response); err != nil {
+	if err := s.validateResponse(response); err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
 // Poll returns one authorized bounded live page.
-func (server *Server) Poll(
+func (s *Server) Poll(
 	ctx context.Context,
 	request *continuationv1.PollRequest,
 ) (*continuationv1.PollResponse, error) {
-	if err := server.validateRequest(ctx, request); err != nil {
+	if err := s.validateRequest(ctx, request); err != nil {
 		return nil, err
 	}
 	callID, limit, err := parsePageRequest(
@@ -229,7 +229,7 @@ func (server *Server) Poll(
 	if err != nil {
 		return nil, invalidRequestStatus("INVALID_POLL")
 	}
-	attachment, err := server.service.Attach(
+	attachment, err := s.service.Attach(
 		ctx,
 		callID,
 		request.GetAfter(),
@@ -243,21 +243,21 @@ func (server *Server) Poll(
 		return nil, invalidBackendStatus()
 	}
 	response := &continuationv1.PollResponse{Page: page}
-	if err := server.validateResponse(response); err != nil {
+	if err := s.validateResponse(response); err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
 // Attach follows authorized pages until terminal state or disconnect.
-func (server *Server) Attach(
+func (s *Server) Attach(
 	request *continuationv1.AttachRequest,
 	stream grpc.ServerStreamingServer[continuationv1.AttachResponse],
 ) error {
-	if server == nil || stream == nil {
+	if s == nil || stream == nil {
 		return invalidBackendStatus()
 	}
-	if err := server.validateRequest(stream.Context(), request); err != nil {
+	if err := s.validateRequest(stream.Context(), request); err != nil {
 		return err
 	}
 	callID, limit, err := parsePageRequest(
@@ -269,7 +269,7 @@ func (server *Server) Attach(
 	}
 	after := request.GetAfter()
 	for {
-		attachment, attachErr := server.service.Attach(
+		attachment, attachErr := s.service.Attach(
 			stream.Context(),
 			callID,
 			after,
@@ -283,7 +283,7 @@ func (server *Server) Attach(
 			return invalidBackendStatus()
 		}
 		for _, response := range splitAttachPage(page) {
-			if err := server.validateResponse(response); err != nil {
+			if err := s.validateResponse(response); err != nil {
 				return err
 			}
 			if err := stream.Send(response); err != nil {
@@ -297,7 +297,7 @@ func (server *Server) Attach(
 			after = page.GetNextSequence() - 1
 			continue
 		}
-		timer := time.NewTimer(server.pollInterval)
+		timer := time.NewTimer(s.pollInterval)
 		select {
 		case <-stream.Context().Done():
 			timer.Stop()
@@ -308,11 +308,11 @@ func (server *Server) Attach(
 }
 
 // Signal submits one authorized idempotent command.
-func (server *Server) Signal(
+func (s *Server) Signal(
 	ctx context.Context,
 	request *continuationv1.SignalRequest,
 ) (*continuationv1.SignalResponse, error) {
-	if err := server.validateRequest(ctx, request); err != nil {
+	if err := s.validateRequest(ctx, request); err != nil {
 		return nil, err
 	}
 	callID, err := callIDFromWire(request.GetCallId())
@@ -322,7 +322,7 @@ func (server *Server) Signal(
 	if len(request.GetPayload()) > maxWirePayloadBytes {
 		return nil, messageBudgetStatus()
 	}
-	snapshot, err := server.service.SubmitSignal(
+	snapshot, err := s.service.SubmitSignal(
 		ctx,
 		callID,
 		request.GetCommandId(),
@@ -336,25 +336,25 @@ func (server *Server) Signal(
 		return nil, invalidBackendStatus()
 	}
 	response := &continuationv1.SignalResponse{Snapshot: encoded}
-	if err := server.validateResponse(response); err != nil {
+	if err := s.validateResponse(response); err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
 // Cancel submits one authorized idempotent cancellation command.
-func (server *Server) Cancel(
+func (s *Server) Cancel(
 	ctx context.Context,
 	request *continuationv1.CancelRequest,
 ) (*continuationv1.CancelResponse, error) {
-	if err := server.validateRequest(ctx, request); err != nil {
+	if err := s.validateRequest(ctx, request); err != nil {
 		return nil, err
 	}
 	callID, err := callIDFromWire(request.GetCallId())
 	if err != nil || !validCommandID(request.GetCommandId()) {
 		return nil, invalidRequestStatus("INVALID_CANCEL")
 	}
-	snapshot, err := server.service.RequestCancel(
+	snapshot, err := s.service.RequestCancel(
 		ctx,
 		callID,
 		request.GetCommandId(),
@@ -367,18 +367,18 @@ func (server *Server) Cancel(
 		return nil, invalidBackendStatus()
 	}
 	response := &continuationv1.CancelResponse{Snapshot: encoded}
-	if err := server.validateResponse(response); err != nil {
+	if err := s.validateResponse(response); err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
 // GetHistory returns one separately authorized bounded historical page.
-func (server *Server) GetHistory(
+func (s *Server) GetHistory(
 	ctx context.Context,
 	request *continuationv1.GetHistoryRequest,
 ) (*continuationv1.GetHistoryResponse, error) {
-	if err := server.validateRequest(ctx, request); err != nil {
+	if err := s.validateRequest(ctx, request); err != nil {
 		return nil, err
 	}
 	callID, limit, err := parsePageRequest(
@@ -390,7 +390,7 @@ func (server *Server) GetHistory(
 	}
 	var attachment continuation.Attachment
 	if request.GetIncludePayload() {
-		attachment, err = server.service.HistoryDetail(
+		attachment, err = s.service.HistoryDetail(
 			ctx,
 			callID,
 			request.GetAfter(),
@@ -401,7 +401,7 @@ func (server *Server) GetHistory(
 		if request.GetMaxPayloadBytes() != 0 {
 			return nil, invalidRequestStatus("INVALID_HISTORY_BUDGET")
 		}
-		attachment, err = server.service.History(
+		attachment, err = s.service.History(
 			ctx,
 			callID,
 			request.GetAfter(),
@@ -416,17 +416,17 @@ func (server *Server) GetHistory(
 		return nil, invalidBackendStatus()
 	}
 	response := &continuationv1.GetHistoryResponse{Page: page}
-	if err := server.validateResponse(response); err != nil {
+	if err := s.validateResponse(response); err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
-func (server *Server) validateRequest(
+func (s *Server) validateRequest(
 	ctx context.Context,
 	request proto.Message,
 ) error {
-	if server == nil || ctx == nil || server.service == nil {
+	if s == nil || ctx == nil || s.service == nil {
 		return invalidBackendStatus()
 	}
 	if request == nil {
@@ -435,17 +435,17 @@ func (server *Server) validateRequest(
 	if cause := context.Cause(ctx); cause != nil {
 		return continuationStatus(cause)
 	}
-	if proto.Size(request) > server.maxRequestBytes {
+	if proto.Size(request) > s.maxRequestBytes {
 		return messageBudgetStatus()
 	}
 	return nil
 }
 
-func (server *Server) validateResponse(response proto.Message) error {
+func (s *Server) validateResponse(response proto.Message) error {
 	if response == nil {
 		return invalidBackendStatus()
 	}
-	if proto.Size(response) > server.maxResponseBytes {
+	if proto.Size(response) > s.maxResponseBytes {
 		return messageBudgetStatus()
 	}
 	return nil

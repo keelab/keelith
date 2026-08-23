@@ -188,8 +188,8 @@ type Option interface {
 
 type optionFunc func(*controllerOptions) error
 
-func (function optionFunc) apply(options *controllerOptions) error {
-	return function(options)
+func (f optionFunc) apply(options *controllerOptions) error {
+	return f(options)
 }
 
 type controllerOptions struct {

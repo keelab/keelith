@@ -78,8 +78,8 @@ type Option interface {
 
 type optionFunc func(*settings) error
 
-func (function optionFunc) apply(settings *settings) error {
-	return function(settings)
+func (f optionFunc) apply(settings *settings) error {
+	return f(settings)
 }
 
 type settings struct {

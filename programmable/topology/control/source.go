@@ -107,8 +107,8 @@ type Verifier interface {
 type VerifierFunc func(context.Context, Candidate) error
 
 // Verify invokes the adapted verifier.
-func (function VerifierFunc) Verify(ctx context.Context, candidate Candidate) error {
-	return function(ctx, candidate)
+func (fn VerifierFunc) Verify(ctx context.Context, candidate Candidate) error {
+	return fn(ctx, candidate)
 }
 
 type ed25519Verifier struct{ publicKey ed25519.PublicKey }

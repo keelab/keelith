@@ -52,11 +52,11 @@ type WorkflowNodeHandlerFunc func(
 ) (WorkflowNodeResult, error)
 
 // Execute invokes the adapted workflow node function.
-func (function WorkflowNodeHandlerFunc) Execute(
+func (fn WorkflowNodeHandlerFunc) Execute(
 	ctx context.Context,
 	execution WorkflowExecution,
 ) (WorkflowNodeResult, error) {
-	return function(ctx, execution)
+	return fn(ctx, execution)
 }
 
 // WorkflowRuntimeConfig configures durable DAG reconciliation.

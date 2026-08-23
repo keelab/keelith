@@ -95,8 +95,8 @@ type Observer interface{ Observe(context.Context, Event) }
 type ObserverFunc func(context.Context, Event)
 
 // Observe invokes the adapted observer.
-func (function ObserverFunc) Observe(ctx context.Context, event Event) {
-	function(ctx, event)
+func (fn ObserverFunc) Observe(ctx context.Context, event Event) {
+	fn(ctx, event)
 }
 
 // ControllerConfig configures serial candidate application and watch recovery.

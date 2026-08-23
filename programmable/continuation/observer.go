@@ -58,8 +58,8 @@ type Observer interface {
 type ObserverFunc func(context.Context, Event)
 
 // Observe implements Observer.
-func (function ObserverFunc) Observe(ctx context.Context, event Event) {
-	function(ctx, event)
+func (fn ObserverFunc) Observe(ctx context.Context, event Event) {
+	fn(ctx, event)
 }
 
 func (runtime *Runtime) observe(ctx context.Context, event Event) {

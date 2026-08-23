@@ -43,11 +43,11 @@ type EpochObserver interface {
 type EpochObserverFunc func(context.Context, EpochEvent)
 
 // ObserveEpoch implements EpochObserver.
-func (function EpochObserverFunc) ObserveEpoch(
+func (fn EpochObserverFunc) ObserveEpoch(
 	ctx context.Context,
 	event EpochEvent,
 ) {
-	function(ctx, event)
+	fn(ctx, event)
 }
 
 func observeEpoch(

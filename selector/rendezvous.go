@@ -54,49 +54,49 @@ func NewRendezvous(
 }
 
 // PreferenceTierCount reports the configured bounded preference depth.
-func (selector *Rendezvous) PreferenceTierCount() int {
-	if selector == nil {
+func (r *Rendezvous) PreferenceTierCount() int {
+	if r == nil {
 		return 0
 	}
-	return selector.settings.preferenceTierCount()
+	return r.settings.preferenceTierCount()
 }
 
 // Update atomically replaces the current full Snapshot.
-func (selector *Rendezvous) Update(snapshot registry.Snapshot) error {
-	nodes, err := nodesFromSnapshot(snapshot, selector.scheme)
+func (r *Rendezvous) Update(snapshot registry.Snapshot) error {
+	nodes, err := nodesFromSnapshot(snapshot, r.scheme)
 	if err != nil {
 		return err
 	}
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
-	if selector.service == snapshot.Service() &&
-		selector.revision == snapshot.Revision() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.service == snapshot.Service() &&
+		r.revision == snapshot.Revision() {
 		return nil
 	}
-	selector.service = snapshot.Service()
-	selector.revision = snapshot.Revision()
-	selector.nodes = nodes
+	r.service = snapshot.Service()
+	r.revision = snapshot.Revision()
+	r.nodes = nodes
 	return nil
 }
 
 // Select returns the highest-scoring eligible node for the extracted key.
-func (selector *Rendezvous) Select(
+func (r *Rendezvous) Select(
 	ctx context.Context,
 	operationID operation.Operation,
 ) (Node, Done, error) {
-	selector.mu.RLock()
-	service := selector.service
-	nodes := append([]Node(nil), selector.nodes...)
-	selector.mu.RUnlock()
+	r.mu.RLock()
+	service := r.service
+	nodes := append([]Node(nil), r.nodes...)
+	r.mu.RUnlock()
 
 	if service != "" && operationID.Service() != service {
 		return Node{}, nil, ErrServiceMismatch
 	}
-	eligible, err := eligibleNodes(ctx, operationID, nodes, selector.settings)
+	eligible, err := eligibleNodes(ctx, operationID, nodes, r.settings)
 	if err != nil {
 		return Node{}, nil, err
 	}
-	key, err := selector.key(ctx, operationID)
+	key, err := r.key(ctx, operationID)
 	if err != nil {
 		return Node{}, nil, fmt.Errorf("%w: %w", ErrHashKey, err)
 	}
@@ -114,7 +114,7 @@ func (selector *Rendezvous) Select(
 		}
 	}
 	return chosen, idempotentDone(func(result Result) {
-		observeResult(selector.settings, operationID, chosen, result)
+		observeResult(r.settings, operationID, chosen, result)
 	}), nil
 }
 

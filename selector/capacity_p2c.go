@@ -94,38 +94,38 @@ func NewCapacityP2CForSchemes(
 }
 
 // PreferenceTierCount reports the configured bounded preference depth.
-func (selector *CapacityP2C) PreferenceTierCount() int {
-	if selector == nil {
+func (c *CapacityP2C) PreferenceTierCount() int {
+	if c == nil {
 		return 0
 	}
-	return selector.settings.preferenceTierCount()
+	return c.settings.preferenceTierCount()
 }
 
 // Update atomically replaces Nodes while preserving feedback for stable keys.
-func (selector *CapacityP2C) Update(snapshot registry.Snapshot) error {
-	nodes, err := p2cNodesFromSnapshot(snapshot, selector.schemes)
+func (c *CapacityP2C) Update(snapshot registry.Snapshot) error {
+	nodes, err := p2cNodesFromSnapshot(snapshot, c.schemes)
 	if err != nil {
 		return err
 	}
 	capacities := make(map[string]float64, len(nodes))
 	for _, node := range nodes {
-		capacity, err := advertisedCapacity(node, selector.capacityKey)
+		capacity, err := advertisedCapacity(node, c.capacityKey)
 		if err != nil {
 			return err
 		}
 		capacities[node.key()] = capacity
 	}
 
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
-	if selector.service == snapshot.Service() &&
-		selector.revision == snapshot.Revision() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.service == snapshot.Service() &&
+		c.revision == snapshot.Revision() {
 		return nil
 	}
 	next := make(map[string]*capacityNodeState, len(nodes))
 	for _, node := range nodes {
 		key := node.key()
-		state := selector.nodes[key]
+		state := c.nodes[key]
 		if state == nil {
 			state = &capacityNodeState{node: node}
 		} else {
@@ -134,63 +134,63 @@ func (selector *CapacityP2C) Update(snapshot registry.Snapshot) error {
 		state.capacity = capacities[key]
 		next[key] = state
 	}
-	selector.service = snapshot.Service()
-	selector.revision = snapshot.Revision()
-	selector.nodes = next
+	c.service = snapshot.Service()
+	c.revision = snapshot.Revision()
+	c.nodes = next
 	return nil
 }
 
 // Select returns the lower normalized load of two eligible Nodes.
-func (selector *CapacityP2C) Select(
+func (c *CapacityP2C) Select(
 	ctx context.Context,
 	operationID operation.Operation,
 ) (Node, Done, error) {
-	selector.mu.Lock()
-	service := selector.service
-	nodes := make([]Node, 0, len(selector.nodes))
-	for _, state := range selector.nodes {
+	c.mu.Lock()
+	service := c.service
+	nodes := make([]Node, 0, len(c.nodes))
+	for _, state := range c.nodes {
 		nodes = append(nodes, state.node)
 	}
-	selector.mu.Unlock()
+	c.mu.Unlock()
 
 	if service != "" && operationID.Service() != service {
 		return Node{}, nil, ErrServiceMismatch
 	}
-	eligible, err := eligibleNodes(ctx, operationID, nodes, selector.settings)
+	eligible, err := eligibleNodes(ctx, operationID, nodes, c.settings)
 	if err != nil {
 		return Node{}, nil, err
 	}
 
-	selector.mu.Lock()
+	c.mu.Lock()
 	candidates := make([]*capacityNodeState, 0, len(eligible))
 	for _, node := range eligible {
-		if state := selector.nodes[node.key()]; state != nil {
+		if state := c.nodes[node.key()]; state != nil {
 			candidates = append(candidates, state)
 		}
 	}
 	if len(candidates) == 0 {
-		selector.mu.Unlock()
+		c.mu.Unlock()
 		return Node{}, nil, ErrNoNodes
 	}
-	chosen := selector.choose(candidates)
+	chosen := c.choose(candidates)
 	chosen.inflight++
 	node := chosen.node
 	started := time.Now()
-	selector.mu.Unlock()
+	c.mu.Unlock()
 
 	done := idempotentDone(func(result Result) {
-		selector.record(chosen, started, result)
-		observeResult(selector.settings, operationID, node, result)
+		c.record(chosen, started, result)
+		observeResult(c.settings, operationID, node, result)
 	})
 	return node, done, nil
 }
 
 // Stats returns stable node diagnostics without exposing mutable state.
-func (selector *CapacityP2C) Stats() []CapacityNodeStats {
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
-	stats := make([]CapacityNodeStats, 0, len(selector.nodes))
-	for _, state := range selector.nodes {
+func (c *CapacityP2C) Stats() []CapacityNodeStats {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stats := make([]CapacityNodeStats, 0, len(c.nodes))
+	for _, state := range c.nodes {
 		stats = append(stats, CapacityNodeStats{
 			NodeStats: NodeStats{
 				Node:           state.node,
@@ -207,14 +207,14 @@ func (selector *CapacityP2C) Stats() []CapacityNodeStats {
 	return stats
 }
 
-func (selector *CapacityP2C) choose(
+func (c *CapacityP2C) choose(
 	candidates []*capacityNodeState,
 ) *capacityNodeState {
 	if len(candidates) == 1 {
 		return candidates[0]
 	}
-	first := candidates[selector.nextRandom()%uint64(len(candidates))]
-	second := candidates[selector.nextRandom()%uint64(len(candidates))]
+	first := candidates[c.nextRandom()%uint64(len(candidates))]
+	second := candidates[c.nextRandom()%uint64(len(candidates))]
 	if first == second {
 		for _, candidate := range candidates {
 			if candidate != first {
@@ -229,16 +229,16 @@ func (selector *CapacityP2C) choose(
 	return first
 }
 
-func (selector *CapacityP2C) nextRandom() uint64 {
-	value := selector.random
+func (c *CapacityP2C) nextRandom() uint64 {
+	value := c.random
 	value ^= value << 13
 	value ^= value >> 7
 	value ^= value << 17
-	selector.random = value
+	c.random = value
 	return value
 }
 
-func (selector *CapacityP2C) record(
+func (c *CapacityP2C) record(
 	state *capacityNodeState,
 	started time.Time,
 	result Result,
@@ -248,8 +248,8 @@ func (selector *CapacityP2C) record(
 		latency = time.Since(started)
 	}
 
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if state.inflight > 0 {
 		state.inflight--
 	}

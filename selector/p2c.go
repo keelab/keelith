@@ -61,30 +61,30 @@ func NewP2CForSchemes(
 }
 
 // PreferenceTierCount reports the configured bounded preference depth.
-func (selector *P2C) PreferenceTierCount() int {
-	if selector == nil {
+func (p *P2C) PreferenceTierCount() int {
+	if p == nil {
 		return 0
 	}
-	return selector.settings.preferenceTierCount()
+	return p.settings.preferenceTierCount()
 }
 
 // Update replaces Nodes while preserving feedback for stable node keys.
-func (selector *P2C) Update(snapshot registry.Snapshot) error {
-	nodes, err := p2cNodesFromSnapshot(snapshot, selector.schemes)
+func (p *P2C) Update(snapshot registry.Snapshot) error {
+	nodes, err := p2cNodesFromSnapshot(snapshot, p.schemes)
 	if err != nil {
 		return err
 	}
 
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
-	if selector.service == snapshot.Service() &&
-		selector.revision == snapshot.Revision() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.service == snapshot.Service() &&
+		p.revision == snapshot.Revision() {
 		return nil
 	}
 	next := make(map[string]*nodeState, len(nodes))
 	for _, node := range nodes {
 		key := node.key()
-		state := selector.nodes[key]
+		state := p.nodes[key]
 		if state == nil {
 			state = &nodeState{node: node}
 		} else {
@@ -92,9 +92,9 @@ func (selector *P2C) Update(snapshot registry.Snapshot) error {
 		}
 		next[key] = state
 	}
-	selector.service = snapshot.Service()
-	selector.revision = snapshot.Revision()
-	selector.nodes = next
+	p.service = snapshot.Service()
+	p.revision = snapshot.Revision()
+	p.nodes = next
 	return nil
 }
 
@@ -144,56 +144,56 @@ func p2cNodesFromSnapshot(
 }
 
 // Select samples two eligible Nodes and returns the lower score.
-func (selector *P2C) Select(
+func (p *P2C) Select(
 	ctx context.Context,
 	operationID operation.Operation,
 ) (Node, Done, error) {
-	selector.mu.Lock()
-	service := selector.service
-	nodes := make([]Node, 0, len(selector.nodes))
-	for _, state := range selector.nodes {
+	p.mu.Lock()
+	service := p.service
+	nodes := make([]Node, 0, len(p.nodes))
+	for _, state := range p.nodes {
 		nodes = append(nodes, state.node)
 	}
-	selector.mu.Unlock()
+	p.mu.Unlock()
 
 	if service != "" && operationID.Service() != service {
 		return Node{}, nil, ErrServiceMismatch
 	}
-	eligible, err := eligibleNodes(ctx, operationID, nodes, selector.settings)
+	eligible, err := eligibleNodes(ctx, operationID, nodes, p.settings)
 	if err != nil {
 		return Node{}, nil, err
 	}
 
-	selector.mu.Lock()
+	p.mu.Lock()
 	candidates := make([]*nodeState, 0, len(eligible))
 	for _, node := range eligible {
-		if state := selector.nodes[node.key()]; state != nil {
+		if state := p.nodes[node.key()]; state != nil {
 			candidates = append(candidates, state)
 		}
 	}
 	if len(candidates) == 0 {
-		selector.mu.Unlock()
+		p.mu.Unlock()
 		return Node{}, nil, ErrNoNodes
 	}
-	chosen := selector.choose(candidates)
+	chosen := p.choose(candidates)
 	chosen.inflight++
 	node := chosen.node
 	started := time.Now()
-	selector.mu.Unlock()
+	p.mu.Unlock()
 
 	done := idempotentDone(func(result Result) {
-		selector.record(chosen, started, result)
-		observeResult(selector.settings, operationID, node, result)
+		p.record(chosen, started, result)
+		observeResult(p.settings, operationID, node, result)
 	})
 	return node, done, nil
 }
 
 // Stats returns stable node diagnostics.
-func (selector *P2C) Stats() []NodeStats {
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
-	stats := make([]NodeStats, 0, len(selector.nodes))
-	for _, state := range selector.nodes {
+func (p *P2C) Stats() []NodeStats {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	stats := make([]NodeStats, 0, len(p.nodes))
+	for _, state := range p.nodes {
 		stats = append(stats, NodeStats{
 			Node:           state.node,
 			EWMALatency:    state.ewmaLatency,
@@ -207,12 +207,12 @@ func (selector *P2C) Stats() []NodeStats {
 	return stats
 }
 
-func (selector *P2C) choose(candidates []*nodeState) *nodeState {
+func (p *P2C) choose(candidates []*nodeState) *nodeState {
 	if len(candidates) == 1 {
 		return candidates[0]
 	}
-	first := candidates[selector.nextRandom()%uint64(len(candidates))]
-	second := candidates[selector.nextRandom()%uint64(len(candidates))]
+	first := candidates[p.nextRandom()%uint64(len(candidates))]
+	second := candidates[p.nextRandom()%uint64(len(candidates))]
 	if first == second {
 		for _, candidate := range candidates {
 			if candidate != first {
@@ -227,12 +227,12 @@ func (selector *P2C) choose(candidates []*nodeState) *nodeState {
 	return first
 }
 
-func (selector *P2C) nextRandom() uint64 {
-	value := selector.random
+func (p *P2C) nextRandom() uint64 {
+	value := p.random
 	value ^= value << 13
 	value ^= value >> 7
 	value ^= value << 17
-	selector.random = value
+	p.random = value
 	return value
 }
 
@@ -246,7 +246,7 @@ func score(state *nodeState) float64 {
 		(1 + state.failurePenalty)
 }
 
-func (selector *P2C) record(
+func (p *P2C) record(
 	state *nodeState,
 	started time.Time,
 	result Result,
@@ -256,8 +256,8 @@ func (selector *P2C) record(
 		latency = time.Since(started)
 	}
 
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if state.inflight > 0 {
 		state.inflight--
 	}

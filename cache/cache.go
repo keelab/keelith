@@ -36,19 +36,16 @@ var (
 )
 
 const (
-	envelopeValue    byte = 1    // envelopeValue is the byte value used to indicate a positive cache hit.
-	envelopeNegative byte = 2    // envelopeNegative is the byte value used to indicate a negative cache hit.
-	mutationStripes       = 256  // mutationStripes is the number of stripes used for cache mutation.
-	maxCacheKeyBytes      = 1024 // maxCacheKeyBytes is the maximum number of bytes allowed in a cache key.
+	envelopeValue    byte = 1
+	envelopeNegative byte = 2
+	mutationStripes       = 256
+	maxCacheKeyBytes      = 1024
 )
 
 // Backend is the minimal binary cache storage contract.
 type Backend interface {
-	// Get retrieves the value associated with the given key from the cache.
 	Get(context.Context, string) ([]byte, error)
-	// Set stores the value associated with the given key in the cache.
 	Set(context.Context, string, []byte, time.Duration) error
-	// Delete removes the value associated with the given key from the cache.
 	Delete(context.Context, ...string) (int64, error)
 }
 
@@ -68,12 +65,9 @@ const (
 // VersionedBackend prevents a loader from writing after another replica has
 // atomically advanced a key's invalidation watermark.
 type VersionedBackend interface {
-	Backend // Backend is the minimal binary cache storage contract.
-	// CurrentVersion returns the current version of the given key.
+	Backend
 	CurrentVersion(context.Context, string) (uint64, error)
-	// SetIfVersion stores the value associated with the given key in the cache if the version matches.
 	SetIfVersion(context.Context, string, []byte, time.Duration, uint64) (bool, error)
-	// ApplyInvalidation applies an invalidation state to the given key.
 	ApplyInvalidation(context.Context, string, uint64) (InvalidationState, error)
 }
 
@@ -82,28 +76,27 @@ type Loader[T any] func(context.Context, string) (T, error)
 
 // Random supplies cache TTL jitter values in [0, 1).
 type Random interface {
-	// Float64 returns a random float64 value in [0, 1).
 	Float64() float64
 }
 
 // Cache is a typed read-through cache with request coalescing.
 type Cache[T any] struct {
-	backend Backend            // backend is the backend used to store cache values.
-	version VersionedBackend   // version is the versioned backend used to store cache values.
-	codec   Codec[T]           // codec is the codec used to serialize/deserialize values.
-	loader  Loader[T]          // loader is the function used to load cache values.
-	policy  Policy             // policy is the cache policy.
-	random  Random             // random is used to generate random values.
-	group   singleflight.Group // group is used to coalesce cache load requests.
+	backend Backend
+	version VersionedBackend
+	codec   Codec[T]
+	loader  Loader[T]
+	policy  Policy
+	random  Random
+	group   singleflight.Group
 
-	mutations              [mutationStripes]mutationStripe // mutationStripes is the number of stripes used for cache mutation.
-	staleWritesSuppressed  atomic.Uint64                   // number of stale writes suppressed
-	invalidations          atomic.Uint64                   // number of invalidations
-	observedInvalidations  atomic.Uint64                   // number of observed invalidations
-	versionedInvalidations atomic.Uint64                   // number of versioned invalidations
-	currentInvalidations   atomic.Uint64                   // number of current invalidations
-	staleInvalidations     atomic.Uint64                   // number of stale invalidations
-	versionFailures        atomic.Uint64                   // number of version failures
+	mutations              [mutationStripes]mutationStripe
+	staleWritesSuppressed  atomic.Uint64
+	invalidations          atomic.Uint64
+	observedInvalidations  atomic.Uint64
+	versionedInvalidations atomic.Uint64
+	currentInvalidations   atomic.Uint64
+	staleInvalidations     atomic.Uint64
+	versionFailures        atomic.Uint64
 }
 
 type loadResult[T any] struct {
@@ -117,13 +110,13 @@ type mutationStripe struct {
 
 // Description is a value-free cache consistency snapshot.
 type Description struct {
-	StaleWritesSuppressed  uint64 // number of stale writes suppressed
-	Invalidations          uint64 // number of invalidations
-	ObservedInvalidations  uint64 // number of observed invalidations
-	VersionedInvalidations uint64 // number of versioned invalidations
-	CurrentInvalidations   uint64 // number of current invalidations
-	StaleInvalidations     uint64 // number of stale invalidations
-	VersionFailures        uint64 // number of version failures
+	StaleWritesSuppressed  uint64
+	Invalidations          uint64
+	ObservedInvalidations  uint64
+	VersionedInvalidations uint64
+	CurrentInvalidations   uint64
+	StaleInvalidations     uint64
+	VersionFailures        uint64
 }
 
 // New creates a typed read-through cache.
@@ -511,17 +504,14 @@ func (c *Cache[T]) storeEnvelopeIfVersion(ctx context.Context, key string, envel
 	return nil
 }
 
-// generation returns the generation of the mutation stripe for the given key.
 func (c *Cache[T]) generation(key string) uint64 {
 	return c.stripe(key).generation.Load()
 }
 
-// stripe returns the mutation stripe for the given key.
 func (c *Cache[T]) stripe(key string) *mutationStripe {
 	return &c.mutations[mutationStripeIndex(key)]
 }
 
-// lockStripes locks the mutation stripes for the given keys and returns them in order.
 func (c *Cache[T]) lockStripes(keys []string) []*mutationStripe {
 	indexSet := make(map[int]struct{}, len(keys))
 	for _, key := range keys {
@@ -541,14 +531,12 @@ func (c *Cache[T]) lockStripes(keys []string) []*mutationStripe {
 	return stripes
 }
 
-// unlockStripes unlocks the given stripes in reverse order.
 func unlockStripes(stripes []*mutationStripe) {
 	for index := len(stripes) - 1; index >= 0; index-- {
 		stripes[index].mu.Unlock()
 	}
 }
 
-// mutationStripeIndex returns the index of the mutation stripe for the given key.
 func mutationStripeIndex(key string) int {
 	var hash uint32 = 2166136261
 	for index := range len(key) {
@@ -596,8 +584,8 @@ func validateKey(key string) error {
 	if key == "" || len(key) > maxCacheKeyBytes || strings.TrimSpace(key) != key || !utf8.ValidString(key) {
 		return fmt.Errorf("%w: cache key is invalid", ErrInvalidOption)
 	}
-	for _, character := range key {
-		if unicode.IsControl(character) {
+	for _, r := range key {
+		if unicode.IsControl(r) {
 			return fmt.Errorf("%w: cache key is invalid", ErrInvalidOption)
 		}
 	}

@@ -53,8 +53,8 @@ type Option interface {
 
 type optionFunc func(*options) error
 
-func (function optionFunc) apply(options *options) error {
-	return function(options)
+func (fn optionFunc) apply(options *options) error {
+	return fn(options)
 }
 
 type options struct {
@@ -141,25 +141,25 @@ func New(path string, optionList ...Option) (*Source, error) {
 }
 
 // Load reads, decodes, and fingerprints the complete file.
-func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
+func (s *Source) Load(ctx context.Context) (config.Snapshot, error) {
 	if ctx == nil {
 		return config.Snapshot{}, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
 	if err := context.Cause(ctx); err != nil {
 		return config.Snapshot{}, err
 	}
-	content, err := readLimited(source.path, source.maxBytes)
+	content, err := readLimited(s.path, s.maxBytes)
 	if err != nil {
 		return config.Snapshot{}, err
 	}
 	if err := context.Cause(ctx); err != nil {
 		return config.Snapshot{}, err
 	}
-	values, err := decode(content, source.format)
+	values, err := decode(content, s.format)
 	if err != nil {
 		return config.Snapshot{}, fmt.Errorf(
 			"config/file: decode %s: %w",
-			source.path,
+			s.path,
 			err,
 		)
 	}
@@ -169,16 +169,16 @@ func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
 }
 
 // Watch returns a polling watcher that emits only complete changed snapshots.
-func (source *Source) Watch(ctx context.Context) (config.Watcher, error) {
+func (s *Source) Watch(ctx context.Context) (config.Watcher, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
-	initial, err := source.Load(ctx)
+	initial, err := s.Load(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &watcher{
-		source:       source,
+		source:       s,
 		lastRevision: initial.Revision(),
 		closed:       make(chan struct{}),
 	}, nil
@@ -194,54 +194,54 @@ type watcher struct {
 	closeOnce    sync.Once
 }
 
-func (watcher *watcher) Next(ctx context.Context) (config.Snapshot, error) {
+func (w *watcher) Next(ctx context.Context) (config.Snapshot, error) {
 	if ctx == nil {
 		return config.Snapshot{}, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
-	ticker := time.NewTicker(watcher.source.pollInterval)
+	ticker := time.NewTicker(w.source.pollInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return config.Snapshot{}, context.Cause(ctx)
-		case <-watcher.closed:
+		case <-w.closed:
 			return config.Snapshot{}, config.ErrWatcherClosed
 		case <-ticker.C:
-			snapshot, err := watcher.source.Load(ctx)
+			snapshot, err := w.source.Load(ctx)
 			if err != nil {
-				watcher.recordError(err)
+				w.recordError(err)
 				continue
 			}
-			watcher.mu.Lock()
-			watcher.lastError = nil
-			if snapshot.Revision() == watcher.lastRevision {
-				watcher.mu.Unlock()
+			w.mu.Lock()
+			w.lastError = nil
+			if snapshot.Revision() == w.lastRevision {
+				w.mu.Unlock()
 				continue
 			}
-			watcher.lastRevision = snapshot.Revision()
-			watcher.mu.Unlock()
+			w.lastRevision = snapshot.Revision()
+			w.mu.Unlock()
 			return snapshot, nil
 		}
 	}
 }
 
-func (watcher *watcher) Close() error {
-	watcher.closeOnce.Do(func() { close(watcher.closed) })
+func (w *watcher) Close() error {
+	w.closeOnce.Do(func() { close(w.closed) })
 	return nil
 }
 
 // LastError returns the most recent transient read/decode failure observed
 // while Watch retained the last-good snapshot.
-func (watcher *watcher) LastError() error {
-	watcher.mu.RLock()
-	defer watcher.mu.RUnlock()
-	return watcher.lastError
+func (w *watcher) LastError() error {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.lastError
 }
 
-func (watcher *watcher) recordError(err error) {
-	watcher.mu.Lock()
-	watcher.lastError = err
-	watcher.mu.Unlock()
+func (w *watcher) recordError(err error) {
+	w.mu.Lock()
+	w.lastError = err
+	w.mu.Unlock()
 }
 
 func formatFromPath(path string) (Format, error) {

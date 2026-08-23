@@ -86,12 +86,12 @@ type DiscoveryDescription struct {
 }
 
 type connectionEntry struct {
-	key        string
-	node       selector.Node
-	connection *ggrpc.ClientConn
-	active     int
-	lastUsed   time.Time
-	retired    bool
+	key      string
+	node     selector.Node
+	conn     *ggrpc.ClientConn
+	active   int
+	lastUsed time.Time
+	retired  bool
 }
 
 type pendingDial struct {
@@ -197,24 +197,24 @@ func NewDiscoveryConnection(
 }
 
 // Name returns the stable App component name.
-func (connection *DiscoveryConnection) Name() string {
-	if connection == nil {
+func (dc *DiscoveryConnection) Name() string {
+	if dc == nil {
 		return ""
 	}
-	return connection.name
+	return dc.name
 }
 
 // Dependencies returns the optional Router component dependency.
-func (connection *DiscoveryConnection) Dependencies() []string {
-	if connection == nil || connection.dependency == "" {
+func (dc *DiscoveryConnection) Dependencies() []string {
+	if dc == nil || dc.dependency == "" {
 		return nil
 	}
-	return []string{connection.dependency}
+	return []string{dc.dependency}
 }
 
 // Start enables dynamic call leases.
-func (connection *DiscoveryConnection) Start(ctx context.Context) error {
-	if connection == nil {
+func (dc *DiscoveryConnection) Start(ctx context.Context) error {
+	if dc == nil {
 		return fmt.Errorf("%w: discovery connection is nil", ErrInvalidOption)
 	}
 	if ctx == nil {
@@ -223,91 +223,91 @@ func (connection *DiscoveryConnection) Start(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	connection.mu.Lock()
-	if connection.state != DiscoveryStateNew || connection.starting {
-		connection.mu.Unlock()
+	dc.mu.Lock()
+	if dc.state != DiscoveryStateNew || dc.starting {
+		dc.mu.Unlock()
 		return ErrAlreadyStarted
 	}
-	if connection.nodeChanges == nil {
-		connection.state = DiscoveryStateRunning
-		connection.mu.Unlock()
+	if dc.nodeChanges == nil {
+		dc.state = DiscoveryStateRunning
+		dc.mu.Unlock()
 		return nil
 	}
-	connection.starting = true
+	dc.starting = true
 	runtimeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	connection.changeCancel = cancel
-	connection.mu.Unlock()
+	dc.changeCancel = cancel
+	dc.mu.Unlock()
 
-	watcher, err := connection.nodeChanges.WatchNodeChanges(runtimeCtx)
+	watcher, err := dc.nodeChanges.WatchNodeChanges(runtimeCtx)
 	if err != nil {
 		cancel()
-		connection.failChangeStart(err)
+		dc.failChangeStart(err)
 		return fmt.Errorf("grpc transport: watch node changes: %w", err)
 	}
 	if isNilNodeChangeWatcher(watcher) {
 		cancel()
 		err = errors.New("node change source returned a nil watcher")
-		connection.failChangeStart(err)
+		dc.failChangeStart(err)
 		return fmt.Errorf("grpc transport: %w", err)
 	}
 	initial, err := watcher.Next(ctx)
 	if err != nil {
 		cancel()
 		_ = watcher.Close()
-		connection.failChangeStart(err)
+		dc.failChangeStart(err)
 		return fmt.Errorf("grpc transport: initial node change: %w", err)
 	}
 
-	connection.mu.Lock()
-	if connection.state != DiscoveryStateNew {
-		connection.starting = false
-		connection.changeCancel = nil
-		connection.mu.Unlock()
+	dc.mu.Lock()
+	if dc.state != DiscoveryStateNew {
+		dc.starting = false
+		dc.changeCancel = nil
+		dc.mu.Unlock()
 		cancel()
 		_ = watcher.Close()
 		return ErrDiscoveryNotRunning
 	}
-	connection.starting = false
-	connection.state = DiscoveryStateRunning
-	connection.topologyManaged = true
-	connection.changeWatcher = watcher
-	connection.changeDone = make(chan struct{})
-	connection.applyNodeChangeLocked(initial)
-	changeDone := connection.changeDone
-	connection.mu.Unlock()
+	dc.starting = false
+	dc.state = DiscoveryStateRunning
+	dc.topologyManaged = true
+	dc.changeWatcher = watcher
+	dc.changeDone = make(chan struct{})
+	dc.applyNodeChangeLocked(initial)
+	changeDone := dc.changeDone
+	dc.mu.Unlock()
 
-	go connection.watchNodeChanges(runtimeCtx, watcher, changeDone)
+	go dc.watchNodeChanges(runtimeCtx, watcher, changeDone)
 	return nil
 }
 
 // Stop rejects new leases, drains active calls/streams, and closes connections.
-func (connection *DiscoveryConnection) Stop(ctx context.Context) error {
-	if connection == nil {
+func (dc *DiscoveryConnection) Stop(ctx context.Context) error {
+	if dc == nil {
 		return nil
 	}
 	if ctx == nil {
 		return ErrNilContext
 	}
 
-	connection.mu.Lock()
-	switch connection.state {
+	dc.mu.Lock()
+	switch dc.state {
 	case DiscoveryStateNew:
-		connection.state = DiscoveryStateStopping
+		dc.state = DiscoveryStateStopping
 	case DiscoveryStateRunning:
-		connection.state = DiscoveryStateStopping
+		dc.state = DiscoveryStateStopping
 	case DiscoveryStateStopping:
 	case DiscoveryStateStopped:
-		err := connection.stopErr
-		connection.mu.Unlock()
+		err := dc.stopErr
+		dc.mu.Unlock()
 		return err
 	}
-	changeCancel := connection.changeCancel
-	changeWatcher := connection.changeWatcher
-	changeDone := connection.changeDone
-	connection.cancelPendingDialsLocked(ErrDiscoveryNotRunning)
-	toClose, finalize := connection.beginFinalizeLocked()
-	done := connection.done
-	connection.mu.Unlock()
+	changeCancel := dc.changeCancel
+	changeWatcher := dc.changeWatcher
+	changeDone := dc.changeDone
+	dc.cancelPendingDialsLocked(ErrDiscoveryNotRunning)
+	toClose, finalize := dc.beginFinalizeLocked()
+	done := dc.done
+	dc.mu.Unlock()
 	if changeCancel != nil {
 		changeCancel()
 	}
@@ -315,19 +315,19 @@ func (connection *DiscoveryConnection) Stop(ctx context.Context) error {
 		_ = changeWatcher.Close()
 	}
 	if finalize {
-		connection.finalize(toClose)
+		dc.finalize(toClose)
 	}
 	if err := waitDiscoveryChannels(ctx, done, changeDone); err != nil {
 		return err
 	}
-	connection.mu.Lock()
-	err := connection.stopErr
-	connection.mu.Unlock()
+	dc.mu.Lock()
+	err := dc.stopErr
+	dc.mu.Unlock()
 	return err
 }
 
 // Invoke selects one node and performs a unary call on its pooled ClientConn.
-func (connection *DiscoveryConnection) Invoke(
+func (dc *DiscoveryConnection) Invoke(
 	ctx context.Context,
 	method string,
 	request any,
@@ -337,7 +337,7 @@ func (connection *DiscoveryConnection) Invoke(
 	if ctx == nil {
 		return ErrNilContext
 	}
-	if err := connection.accepting(); err != nil {
+	if err := dc.accepting(); err != nil {
 		return err
 	}
 	target, err := operationFromMethod(method, operation.KindUnary)
@@ -345,8 +345,8 @@ func (connection *DiscoveryConnection) Invoke(
 		return err
 	}
 	started := time.Now()
-	topologyVersion := connection.currentTopologyVersion()
-	node, done, err := connection.picker.Pick(ctx, target)
+	topologyVersion := dc.currentTopologyVersion()
+	node, done, err := dc.picker.Pick(ctx, target)
 	if err != nil {
 		return dependencyFailure(err)
 	}
@@ -356,7 +356,7 @@ func (connection *DiscoveryConnection) Invoke(
 	if err != nil {
 		return failure.MarkTransport(err)
 	}
-	entry, release, err := connection.lease(
+	entry, release, err := dc.lease(
 		routedContext,
 		node,
 		topologyVersion,
@@ -365,7 +365,7 @@ func (connection *DiscoveryConnection) Invoke(
 		return err
 	}
 	defer release()
-	return entry.connection.Invoke(
+	return entry.conn.Invoke(
 		routedContext,
 		method,
 		request,
@@ -375,7 +375,7 @@ func (connection *DiscoveryConnection) Invoke(
 }
 
 // NewStream selects one node and holds its lease until stream termination.
-func (connection *DiscoveryConnection) NewStream(
+func (dc *DiscoveryConnection) NewStream(
 	ctx context.Context,
 	description *ggrpc.StreamDesc,
 	method string,
@@ -387,7 +387,7 @@ func (connection *DiscoveryConnection) NewStream(
 	if description == nil {
 		return nil, fmt.Errorf("%w: stream description is nil", ErrInvalidOption)
 	}
-	if err := connection.accepting(); err != nil {
+	if err := dc.accepting(); err != nil {
 		return nil, err
 	}
 	target, err := operationFromMethod(
@@ -398,8 +398,8 @@ func (connection *DiscoveryConnection) NewStream(
 		return nil, err
 	}
 	started := time.Now()
-	topologyVersion := connection.currentTopologyVersion()
-	node, done, err := connection.picker.Pick(ctx, target)
+	topologyVersion := dc.currentTopologyVersion()
+	node, done, err := dc.picker.Pick(ctx, target)
 	if err != nil {
 		return nil, dependencyFailure(err)
 	}
@@ -426,7 +426,7 @@ func (connection *DiscoveryConnection) NewStream(
 	if err != nil {
 		return nil, failure.MarkTransport(err)
 	}
-	entry, releaseLease, err := connection.lease(
+	entry, releaseLease, err := dc.lease(
 		routedContext,
 		node,
 		topologyVersion,
@@ -435,7 +435,7 @@ func (connection *DiscoveryConnection) NewStream(
 		return nil, err
 	}
 	release = releaseLease
-	stream, err := entry.connection.NewStream(
+	stream, err := entry.conn.NewStream(
 		routedContext,
 		description,
 		method,
@@ -457,51 +457,51 @@ func (connection *DiscoveryConnection) NewStream(
 }
 
 // Describe returns bounded connection, dial, and lifecycle diagnostics.
-func (connection *DiscoveryConnection) Describe() DiscoveryDescription {
-	if connection == nil {
+func (dc *DiscoveryConnection) Describe() DiscoveryDescription {
+	if dc == nil {
 		return DiscoveryDescription{
 			State:     DiscoveryStateStopped,
 			LastError: "discovery connection is nil",
 		}
 	}
-	connection.mu.Lock()
-	defer connection.mu.Unlock()
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
 	retired := 0
-	for _, entry := range connection.entries {
+	for _, entry := range dc.entries {
 		if entry.retired {
 			retired++
 		}
 	}
 	return DiscoveryDescription{
-		Name:             connection.name,
-		State:            connection.state,
-		Connections:      len(connection.entries),
-		Dialing:          len(connection.dialing),
-		Active:           connection.active,
-		MaxConnections:   connection.maxConnections,
-		DialAttempts:     connection.dialAttempts,
-		DialFailures:     connection.dialFailures,
-		Evictions:        connection.evictions,
+		Name:             dc.name,
+		State:            dc.state,
+		Connections:      len(dc.entries),
+		Dialing:          len(dc.dialing),
+		Active:           dc.active,
+		MaxConnections:   dc.maxConnections,
+		DialAttempts:     dc.dialAttempts,
+		DialFailures:     dc.dialFailures,
+		Evictions:        dc.evictions,
 		Retired:          retired,
-		Reconciliations:  connection.reconciliations,
-		TopologyRevision: connection.topologyRevision,
-		LastError:        connection.lastError,
+		Reconciliations:  dc.reconciliations,
+		TopologyRevision: dc.topologyRevision,
+		LastError:        dc.lastError,
 	}
 }
 
-func (connection *DiscoveryConnection) accepting() error {
-	if connection == nil {
+func (dc *DiscoveryConnection) accepting() error {
+	if dc == nil {
 		return ErrDiscoveryNotRunning
 	}
-	connection.mu.Lock()
-	defer connection.mu.Unlock()
-	if connection.state != DiscoveryStateRunning {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	if dc.state != DiscoveryStateRunning {
 		return ErrDiscoveryNotRunning
 	}
 	return nil
 }
 
-func (connection *DiscoveryConnection) lease(
+func (dc *DiscoveryConnection) lease(
 	ctx context.Context,
 	node selector.Node,
 	selectionVersion uint64,
@@ -511,24 +511,24 @@ func (connection *DiscoveryConnection) lease(
 	}
 	key := discoveryNodeKey(node.ID(), node.Endpoint(), node.Metadata())
 	for {
-		connection.mu.Lock()
-		if connection.state != DiscoveryStateRunning {
-			connection.mu.Unlock()
+		dc.mu.Lock()
+		if dc.state != DiscoveryStateRunning {
+			dc.mu.Unlock()
 			return nil, nil, ErrDiscoveryNotRunning
 		}
-		if connection.nodeRetiredLocked(key, selectionVersion) {
-			connection.mu.Unlock()
+		if dc.nodeRetiredLocked(key, selectionVersion) {
+			dc.mu.Unlock()
 			return nil, nil, retiredNodeError(node)
 		}
-		if entry := connection.entries[key]; entry != nil {
+		if entry := dc.entries[key]; entry != nil {
 			entry.active++
-			connection.active++
-			connection.mu.Unlock()
-			return entry, connection.releaseFunc(entry), nil
+			dc.active++
+			dc.mu.Unlock()
+			return entry, dc.releaseFunc(entry), nil
 		}
-		if pending := connection.dialing[key]; pending != nil {
+		if pending := dc.dialing[key]; pending != nil {
 			done := pending.done
-			connection.mu.Unlock()
+			dc.mu.Unlock()
 			select {
 			case <-done:
 				continue
@@ -537,11 +537,11 @@ func (connection *DiscoveryConnection) lease(
 			}
 		}
 
-		evicted := connection.evictLocked(key, time.Now())
-		if len(connection.entries)+len(connection.dialing) >=
-			connection.maxConnections {
-			connection.mu.Unlock()
-			connection.closeEvicted(evicted)
+		evicted := dc.evictLocked(key, time.Now())
+		if len(dc.entries)+len(dc.dialing) >=
+			dc.maxConnections {
+			dc.mu.Unlock()
+			dc.closeEvicted(evicted)
 			return nil, nil, ErrPoolExhausted
 		}
 		dialContext, cancelDial := context.WithCancelCause(ctx)
@@ -549,64 +549,64 @@ func (connection *DiscoveryConnection) lease(
 			done:   make(chan struct{}),
 			cancel: cancelDial,
 		}
-		connection.dialing[key] = pending
-		connection.dialAttempts++
-		connection.mu.Unlock()
-		connection.closeEvicted(evicted)
+		dc.dialing[key] = pending
+		dc.dialAttempts++
+		dc.mu.Unlock()
+		dc.closeEvicted(evicted)
 
-		clientConnection, dialErr := connection.dial(dialContext, node)
+		clientConnection, dialErr := dc.dial(dialContext, node)
 		dialCause := context.Cause(dialContext)
 		cancelDial(context.Canceled)
 		if dialErr == nil && isNilClientConnection(clientConnection) {
 			dialErr = errors.New("dial function returned a nil ClientConn")
 		}
 
-		connection.mu.Lock()
-		delete(connection.dialing, key)
+		dc.mu.Lock()
+		delete(dc.dialing, key)
 		close(pending.done)
 		if errors.Is(dialCause, ErrNodeRetired) {
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
 			if !isNilClientConnection(clientConnection) {
 				_ = clientConnection.Close()
 			}
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 			return nil, nil, retiredNodeError(node)
 		}
 		if errors.Is(dialCause, ErrDiscoveryNotRunning) {
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
 			if !isNilClientConnection(clientConnection) {
 				_ = clientConnection.Close()
 			}
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 			return nil, nil, ErrDiscoveryNotRunning
 		}
 		if dialCause != nil {
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
 			if !isNilClientConnection(clientConnection) {
 				_ = clientConnection.Close()
 			}
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 			return nil, nil, dialCause
 		}
 		if dialErr != nil {
-			connection.dialFailures++
-			connection.lastError = dialErr.Error()
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
+			dc.dialFailures++
+			dc.lastError = dialErr.Error()
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
 			if !isNilClientConnection(clientConnection) {
 				_ = clientConnection.Close()
 			}
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 			return nil, nil, failure.MarkTransport(fmt.Errorf(
 				"grpc transport: dial node %q: %w",
@@ -614,80 +614,80 @@ func (connection *DiscoveryConnection) lease(
 				dialErr,
 			))
 		}
-		if connection.state != DiscoveryStateRunning {
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
+		if dc.state != DiscoveryStateRunning {
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
 			_ = clientConnection.Close()
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 			return nil, nil, ErrDiscoveryNotRunning
 		}
-		if connection.nodeRetiredLocked(key, selectionVersion) {
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
+		if dc.nodeRetiredLocked(key, selectionVersion) {
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
 			_ = clientConnection.Close()
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 			return nil, nil, retiredNodeError(node)
 		}
 		entry := &connectionEntry{
-			key:        key,
-			node:       node,
-			connection: clientConnection,
-			active:     1,
-			lastUsed:   time.Now(),
+			key:      key,
+			node:     node,
+			conn:     clientConnection,
+			active:   1,
+			lastUsed: time.Now(),
 		}
-		connection.entries[key] = entry
-		connection.active++
-		connection.lastError = ""
-		connection.mu.Unlock()
-		return entry, connection.releaseFunc(entry), nil
+		dc.entries[key] = entry
+		dc.active++
+		dc.lastError = ""
+		dc.mu.Unlock()
+		return entry, dc.releaseFunc(entry), nil
 	}
 }
 
-func (connection *DiscoveryConnection) releaseFunc(
+func (dc *DiscoveryConnection) releaseFunc(
 	entry *connectionEntry,
 ) func() {
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			connection.mu.Lock()
+			dc.mu.Lock()
 			if entry.active > 0 {
 				entry.active--
-				connection.active--
+				dc.active--
 			}
 			entry.lastUsed = time.Now()
 			var retired []*ggrpc.ClientConn
 			if entry.active == 0 && entry.retired {
-				if connection.entries[entry.key] == entry {
-					delete(connection.entries, entry.key)
-					retired = append(retired, entry.connection)
-					connection.evictions++
+				if dc.entries[entry.key] == entry {
+					delete(dc.entries, entry.key)
+					retired = append(retired, entry.conn)
+					dc.evictions++
 				}
 			}
-			toClose, finalize := connection.beginFinalizeLocked()
-			connection.mu.Unlock()
-			connection.closeEvicted(retired)
+			toClose, finalize := dc.beginFinalizeLocked()
+			dc.mu.Unlock()
+			dc.closeEvicted(retired)
 			if finalize {
-				connection.finalize(toClose)
+				dc.finalize(toClose)
 			}
 		})
 	}
 }
 
-func (connection *DiscoveryConnection) failChangeStart(err error) {
-	connection.mu.Lock()
-	connection.starting = false
-	connection.changeCancel = nil
+func (dc *DiscoveryConnection) failChangeStart(err error) {
+	dc.mu.Lock()
+	dc.starting = false
+	dc.changeCancel = nil
 	if err != nil {
-		connection.lastError = err.Error()
+		dc.lastError = err.Error()
 	}
-	connection.mu.Unlock()
+	dc.mu.Unlock()
 }
 
-func (connection *DiscoveryConnection) watchNodeChanges(
+func (dc *DiscoveryConnection) watchNodeChanges(
 	ctx context.Context,
 	watcher kclient.NodeChangeWatcher,
 	done chan struct{},
@@ -698,35 +698,35 @@ func (connection *DiscoveryConnection) watchNodeChanges(
 		if err != nil {
 			if context.Cause(ctx) == nil &&
 				!errors.Is(err, kclient.ErrNodeChangeWatcherClosed) {
-				connection.mu.Lock()
-				connection.lastError = err.Error()
-				connection.mu.Unlock()
+				dc.mu.Lock()
+				dc.lastError = err.Error()
+				dc.mu.Unlock()
 			}
 			return
 		}
-		connection.applyNodeChange(change)
+		dc.applyNodeChange(change)
 	}
 }
 
-func (connection *DiscoveryConnection) applyNodeChange(
+func (dc *DiscoveryConnection) applyNodeChange(
 	change kclient.NodeChange,
 ) {
-	connection.mu.Lock()
-	if connection.state != DiscoveryStateRunning {
-		connection.mu.Unlock()
+	dc.mu.Lock()
+	if dc.state != DiscoveryStateRunning {
+		dc.mu.Unlock()
 		return
 	}
-	toClose := connection.applyNodeChangeLocked(change)
-	connection.mu.Unlock()
-	connection.closeEvicted(toClose)
+	toClose := dc.applyNodeChangeLocked(change)
+	dc.mu.Unlock()
+	dc.closeEvicted(toClose)
 }
 
-func (connection *DiscoveryConnection) applyNodeChangeLocked(
+func (dc *DiscoveryConnection) applyNodeChangeLocked(
 	change kclient.NodeChange,
 ) []*ggrpc.ClientConn {
 	desired := grpcTopologyKeys(change.Current())
 	retired := make(map[string]struct{})
-	for key := range connection.desired {
+	for key := range dc.desired {
 		if _, exists := desired[key]; !exists {
 			retired[key] = struct{}{}
 		}
@@ -746,7 +746,7 @@ func (connection *DiscoveryConnection) applyNodeChangeLocked(
 	}
 
 	toClose := make([]*ggrpc.ClientConn, 0)
-	for key, entry := range connection.entries {
+	for key, entry := range dc.entries {
 		if _, exists := desired[key]; exists {
 			entry.retired = false
 			continue
@@ -754,12 +754,12 @@ func (connection *DiscoveryConnection) applyNodeChangeLocked(
 		entry.retired = true
 		retired[key] = struct{}{}
 		if entry.active == 0 {
-			delete(connection.entries, key)
-			toClose = append(toClose, entry.connection)
-			connection.evictions++
+			delete(dc.entries, key)
+			toClose = append(toClose, entry.conn)
+			dc.evictions++
 		}
 	}
-	for key, pending := range connection.dialing {
+	for key, pending := range dc.dialing {
 		if _, exists := desired[key]; exists {
 			continue
 		}
@@ -768,17 +768,17 @@ func (connection *DiscoveryConnection) applyNodeChangeLocked(
 			pending.cancel(ErrNodeRetired)
 		}
 	}
-	connection.desired = desired
-	connection.retired = retired
-	connection.topologyManaged = true
-	connection.topologyVersion++
-	connection.topologyRevision = change.Revision()
-	connection.reconciliations++
+	dc.desired = desired
+	dc.retired = retired
+	dc.topologyManaged = true
+	dc.topologyVersion++
+	dc.topologyRevision = change.Revision()
+	dc.reconciliations++
 	return toClose
 }
 
-func (connection *DiscoveryConnection) cancelPendingDialsLocked(cause error) {
-	for _, pending := range connection.dialing {
+func (dc *DiscoveryConnection) cancelPendingDialsLocked(cause error) {
+	for _, pending := range dc.dialing {
 		if pending.cancel != nil {
 			pending.cancel(cause)
 		}
@@ -850,24 +850,24 @@ func waitDiscoveryChannels(
 	return nil
 }
 
-func (connection *DiscoveryConnection) currentTopologyVersion() uint64 {
-	connection.mu.Lock()
-	defer connection.mu.Unlock()
-	return connection.topologyVersion
+func (dc *DiscoveryConnection) currentTopologyVersion() uint64 {
+	dc.mu.Lock()
+	defer dc.mu.Unlock()
+	return dc.topologyVersion
 }
 
-func (connection *DiscoveryConnection) nodeRetiredLocked(
+func (dc *DiscoveryConnection) nodeRetiredLocked(
 	key string,
 	selectionVersion uint64,
 ) bool {
-	if !connection.topologyManaged {
+	if !dc.topologyManaged {
 		return false
 	}
-	if _, retired := connection.retired[key]; retired {
+	if _, retired := dc.retired[key]; retired {
 		return true
 	}
-	if connection.topologyVersion > selectionVersion {
-		_, current := connection.desired[key]
+	if dc.topologyVersion > selectionVersion {
+		_, current := dc.desired[key]
 		return !current
 	}
 	return false
@@ -882,25 +882,25 @@ func retiredNodeError(node selector.Node) error {
 	))
 }
 
-func (connection *DiscoveryConnection) evictLocked(
+func (dc *DiscoveryConnection) evictLocked(
 	requestedKey string,
 	now time.Time,
 ) []*ggrpc.ClientConn {
 	evicted := make([]*ggrpc.ClientConn, 0)
-	for key, entry := range connection.entries {
+	for key, entry := range dc.entries {
 		if key == requestedKey || entry.active != 0 {
 			continue
 		}
-		if now.Sub(entry.lastUsed) >= connection.idleTimeout {
-			delete(connection.entries, key)
-			evicted = append(evicted, entry.connection)
-			connection.evictions++
+		if now.Sub(entry.lastUsed) >= dc.idleTimeout {
+			delete(dc.entries, key)
+			evicted = append(evicted, entry.conn)
+			dc.evictions++
 		}
 	}
-	for len(connection.entries)+len(connection.dialing) >=
-		connection.maxConnections {
+	for len(dc.entries)+len(dc.dialing) >=
+		dc.maxConnections {
 		var oldest *connectionEntry
-		for _, entry := range connection.entries {
+		for _, entry := range dc.entries {
 			if entry.active != 0 ||
 				oldest != nil && !entry.lastUsed.Before(oldest.lastUsed) {
 				continue
@@ -910,14 +910,14 @@ func (connection *DiscoveryConnection) evictLocked(
 		if oldest == nil {
 			break
 		}
-		delete(connection.entries, oldest.key)
-		evicted = append(evicted, oldest.connection)
-		connection.evictions++
+		delete(dc.entries, oldest.key)
+		evicted = append(evicted, oldest.conn)
+		dc.evictions++
 	}
 	return evicted
 }
 
-func (connection *DiscoveryConnection) closeEvicted(
+func (dc *DiscoveryConnection) closeEvicted(
 	connections []*ggrpc.ClientConn,
 ) {
 	var closeErr error
@@ -927,33 +927,33 @@ func (connection *DiscoveryConnection) closeEvicted(
 		}
 	}
 	if closeErr != nil {
-		connection.mu.Lock()
-		connection.stopErr = errors.Join(connection.stopErr, closeErr)
-		connection.lastError = closeErr.Error()
-		connection.mu.Unlock()
+		dc.mu.Lock()
+		dc.stopErr = errors.Join(dc.stopErr, closeErr)
+		dc.lastError = closeErr.Error()
+		dc.mu.Unlock()
 	}
 }
 
-func (connection *DiscoveryConnection) beginFinalizeLocked() (
+func (dc *DiscoveryConnection) beginFinalizeLocked() (
 	[]*ggrpc.ClientConn,
 	bool,
 ) {
-	if connection.state != DiscoveryStateStopping ||
-		connection.finalizing ||
-		connection.active != 0 ||
-		len(connection.dialing) != 0 {
+	if dc.state != DiscoveryStateStopping ||
+		dc.finalizing ||
+		dc.active != 0 ||
+		len(dc.dialing) != 0 {
 		return nil, false
 	}
-	connection.finalizing = true
-	result := make([]*ggrpc.ClientConn, 0, len(connection.entries))
-	for _, entry := range connection.entries {
-		result = append(result, entry.connection)
+	dc.finalizing = true
+	result := make([]*ggrpc.ClientConn, 0, len(dc.entries))
+	for _, entry := range dc.entries {
+		result = append(result, entry.conn)
 	}
-	connection.entries = make(map[string]*connectionEntry)
+	dc.entries = make(map[string]*connectionEntry)
 	return result, true
 }
 
-func (connection *DiscoveryConnection) finalize(
+func (dc *DiscoveryConnection) finalize(
 	connections []*ggrpc.ClientConn,
 ) {
 	var closeErr error
@@ -962,14 +962,14 @@ func (connection *DiscoveryConnection) finalize(
 			closeErr = errors.Join(closeErr, err)
 		}
 	}
-	connection.mu.Lock()
-	connection.stopErr = errors.Join(connection.stopErr, closeErr)
+	dc.mu.Lock()
+	dc.stopErr = errors.Join(dc.stopErr, closeErr)
 	if closeErr != nil {
-		connection.lastError = closeErr.Error()
+		dc.lastError = closeErr.Error()
 	}
-	connection.state = DiscoveryStateStopped
-	connection.doneOnce.Do(func() { close(connection.done) })
-	connection.mu.Unlock()
+	dc.state = DiscoveryStateStopped
+	dc.doneOnce.Do(func() { close(dc.done) })
+	dc.mu.Unlock()
 }
 
 func selectedGRPCContext(
@@ -1080,8 +1080,8 @@ func validDiscoveryName(value string) bool {
 	if value == "" || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}
@@ -1142,8 +1142,8 @@ func isNilNodeChangeWatcher(watcher kclient.NodeChangeWatcher) bool {
 	}
 }
 
-func isNilClientConnection(connection *ggrpc.ClientConn) bool {
-	return connection == nil
+func isNilClientConnection(dc *ggrpc.ClientConn) bool {
+	return dc == nil
 }
 
 var _ ggrpc.ClientConnInterface = (*DiscoveryConnection)(nil)

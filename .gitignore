@@ -18,9 +18,12 @@ coverage.*
 # 本地环境与临时文件
 .env
 .env.*
+.gitnexus
+.claude
 !.env.example
 tmp/
 temp/
 
 
 AGENTS.md
+CLAUDE.md

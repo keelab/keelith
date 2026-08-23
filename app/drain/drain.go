@@ -13,16 +13,12 @@ import (
 	"github.com/keelab/keelith/registry"
 )
 
-var (
-	// ErrInvalidOption reports an incomplete drain dependency or policy.
-	ErrInvalidOption = errors.New("drain: invalid option")
-)
+// ErrInvalidOption reports an incomplete drain dependency or policy.
+var ErrInvalidOption = errors.New("drain: invalid option")
 
 // Clock supplies time for drain diagnostics and propagation delay.
 type Clock interface {
-	// Now returns the current time.
 	Now() time.Time
-	// After returns a channel that will receive a time after the specified duration.
 	After(time.Duration) <-chan time.Time
 }
 
@@ -34,42 +30,42 @@ const (
 	StateReady State = "ready"
 	// StateDeregistering means the registry call is in progress.
 	StateDeregistering State = "deregistering"
-	// StatePropagating means the manager is waiting for discovery convergence.
+	// StatePropagating means discovery convergence is waiting.
 	StatePropagating State = "propagating"
 	// StateDrained means deregistration and propagation completed.
 	StateDrained State = "drained"
-	// StateFailed means the one drain attempt failed.
+	// StateFailed means the drain attempt failed.
 	StateFailed State = "failed"
 )
 
 // Config defines one instance drain boundary.
 type Config struct {
-	Registrar       registry.Registrar // The registrar to use for deregistration.
-	Instance        registry.Instance  // The instance to deregister.
-	PropagationWait time.Duration      // The duration to wait for discovery convergence.
-	Clock           Clock              // The clock to use for time-based operations.
+	Registrar       registry.Registrar
+	Instance        registry.Instance
+	PropagationWait time.Duration
+	Clock           Clock
 }
 
 // Description is an immutable diagnostic snapshot.
 type Description struct {
-	State     State     // The current state of the drain manager.
-	StartedAt time.Time // The time the drain manager started.
-	EndedAt   time.Time // The time the drain manager ended.
-	LastError string    // The last error encountered during the drain manager's operation.
+	State     State
+	StartedAt time.Time
+	EndedAt   time.Time
+	LastError string
 }
 
 // Manager performs exactly one deregister-and-propagate sequence.
 type Manager struct {
-	registrar registry.Registrar // The registrar to use for deregistration.
-	instance  registry.Instance  // The instance to deregister.
-	wait      time.Duration      // The duration to wait for discovery convergence.
-	clock     Clock              // The clock to use for time-based operations.
+	registrar registry.Registrar
+	instance  registry.Instance
+	wait      time.Duration
+	clock     Clock
 
 	mu          sync.Mutex
-	state       State     // The current state of the drain manager.
-	startedAt   time.Time // The time the drain manager started.
-	endedAt     time.Time // The time the drain manager ended.
-	err         error     // The last error encountered during the drain manager's operation.
+	state       State
+	startedAt   time.Time
+	endedAt     time.Time
+	err         error
 	done        chan struct{}
 	started     bool
 	completeOne sync.Once
@@ -84,11 +80,9 @@ func New(config Config) (*Manager, error) {
 		return nil, fmt.Errorf("%w: instance: %w", ErrInvalidOption, err)
 	}
 	if config.PropagationWait < 0 {
-		return nil, fmt.Errorf(
-			"%w: propagation wait is negative",
-			ErrInvalidOption,
-		)
+		return nil, fmt.Errorf("%w: propagation wait is negative", ErrInvalidOption)
 	}
+
 	clock := config.Clock
 	if isNil(clock) {
 		clock = systemClock{}
@@ -104,14 +98,13 @@ func New(config Config) (*Manager, error) {
 	}, nil
 }
 
-// Hook returns the App hook that runs after readiness is revoked and before
-// servers begin draining.
+// Hook runs after readiness is revoked and before servers begin draining.
 func (m *Manager) Hook() app.Hook {
 	return app.Hook{BeforeStop: m.Drain}
 }
 
 // Drain deregisters once, waits for discovery propagation, and is safe for
-// concurrent/repeated calls.
+// concurrent or repeated calls.
 func (m *Manager) Drain(ctx context.Context) error {
 	if m == nil {
 		return fmt.Errorf("%w: manager is nil", ErrInvalidOption)
@@ -119,6 +112,7 @@ func (m *Manager) Drain(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
+
 	m.mu.Lock()
 	if m.started {
 		done := m.done
@@ -132,7 +126,6 @@ func (m *Manager) Drain(ctx context.Context) error {
 
 	err := m.run(ctx)
 	m.complete(err)
-
 	return err
 }
 
@@ -141,8 +134,10 @@ func (m *Manager) Describe() Description {
 	if m == nil {
 		return Description{State: StateFailed, LastError: "manager is nil"}
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	description := Description{
 		State:     m.state,
 		StartedAt: m.startedAt,
@@ -164,9 +159,11 @@ func (m *Manager) run(ctx context.Context) error {
 	if m.wait == 0 {
 		return nil
 	}
+
 	m.mu.Lock()
 	m.state = StatePropagating
 	m.mu.Unlock()
+
 	select {
 	case <-ctx.Done():
 		return context.Cause(ctx)
@@ -178,6 +175,8 @@ func (m *Manager) run(ctx context.Context) error {
 func (m *Manager) complete(err error) {
 	m.completeOne.Do(func() {
 		m.mu.Lock()
+		defer m.mu.Unlock()
+
 		m.err = err
 		m.endedAt = m.clock.Now()
 		if err == nil {
@@ -186,7 +185,6 @@ func (m *Manager) complete(err error) {
 			m.state = StateFailed
 		}
 		close(m.done)
-		m.mu.Unlock()
 	})
 }
 
@@ -201,28 +199,25 @@ func (m *Manager) waitFor(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
+type systemClock struct{}
+
+func (systemClock) Now() time.Time {
+	return time.Now()
+}
+
+func (systemClock) After(duration time.Duration) <-chan time.Time {
+	return time.After(duration)
+}
+
 func isNil(value any) bool {
 	if value == nil {
 		return true
 	}
 	reflected := reflect.ValueOf(value)
 	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
-		reflect.Pointer, reflect.Slice:
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return reflected.IsNil()
 	default:
 		return false
 	}
-}
-
-type systemClock struct{}
-
-// Now returns the current time.
-func (systemClock) Now() time.Time {
-	return time.Now()
-}
-
-// After returns a channel that will receive a time after the specified duration.
-func (systemClock) After(duration time.Duration) <-chan time.Time {
-	return time.After(duration)
 }

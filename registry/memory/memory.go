@@ -31,7 +31,7 @@ func New() *Registry {
 }
 
 // Register inserts or replaces an Instance and publishes a full Snapshot.
-func (backend *Registry) Register(ctx context.Context, instance registry.Instance) error {
+func (r *Registry) Register(ctx context.Context, instance registry.Instance) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
@@ -39,9 +39,9 @@ func (backend *Registry) Register(ctx context.Context, instance registry.Instanc
 		return err
 	}
 
-	backend.mu.Lock()
-	defer backend.mu.Unlock()
-	state := backend.service(instance.Service())
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.service(instance.Service())
 	for id, existing := range state.instances {
 		if id == instance.ID() {
 			continue
@@ -63,12 +63,12 @@ func (backend *Registry) Register(ctx context.Context, instance registry.Instanc
 	}
 	state.instances[instance.ID()] = instance.Clone()
 	state.revision++
-	backend.notify(instance.Service(), backend.snapshot(instance.Service(), state))
+	r.notify(instance.Service(), r.snapshot(instance.Service(), state))
 	return nil
 }
 
 // Deregister removes an Instance by service and ID.
-func (backend *Registry) Deregister(ctx context.Context, instance registry.Instance) error {
+func (r *Registry) Deregister(ctx context.Context, instance registry.Instance) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
@@ -76,20 +76,20 @@ func (backend *Registry) Deregister(ctx context.Context, instance registry.Insta
 		return err
 	}
 
-	backend.mu.Lock()
-	defer backend.mu.Unlock()
-	state := backend.service(instance.Service())
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	state := r.service(instance.Service())
 	if _, exists := state.instances[instance.ID()]; !exists {
 		return nil
 	}
 	delete(state.instances, instance.ID())
 	state.revision++
-	backend.notify(instance.Service(), backend.snapshot(instance.Service(), state))
+	r.notify(instance.Service(), r.snapshot(instance.Service(), state))
 	return nil
 }
 
 // Watch creates a watcher whose first value is the current full Snapshot.
-func (backend *Registry) Watch(ctx context.Context, service string) (registry.Watcher, error) {
+func (r *Registry) Watch(ctx context.Context, service string) (registry.Watcher, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
@@ -98,42 +98,42 @@ func (backend *Registry) Watch(ctx context.Context, service string) (registry.Wa
 	}
 
 	subscription := &watcher{
-		backend: backend,
+		backend: r,
 		service: service,
 		parent:  ctx,
 		updates: make(chan registry.Snapshot, 1),
 		done:    make(chan struct{}),
 	}
-	backend.mu.Lock()
-	state := backend.service(service)
-	serviceWatchers := backend.watchers[service]
+	r.mu.Lock()
+	state := r.service(service)
+	serviceWatchers := r.watchers[service]
 	if serviceWatchers == nil {
 		serviceWatchers = make(map[*watcher]struct{})
-		backend.watchers[service] = serviceWatchers
+		r.watchers[service] = serviceWatchers
 	}
 	serviceWatchers[subscription] = struct{}{}
-	subscription.updates <- backend.snapshot(service, state)
-	backend.mu.Unlock()
+	subscription.updates <- r.snapshot(service, state)
+	r.mu.Unlock()
 	return subscription, nil
 }
 
 // WatcherCount returns the number of open watchers for service.
-func (backend *Registry) WatcherCount(service string) int {
-	backend.mu.Lock()
-	defer backend.mu.Unlock()
-	return len(backend.watchers[service])
+func (r *Registry) WatcherCount(service string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.watchers[service])
 }
 
-func (backend *Registry) service(name string) *serviceState {
-	state := backend.services[name]
+func (r *Registry) service(name string) *serviceState {
+	state := r.services[name]
 	if state == nil {
 		state = &serviceState{instances: make(map[string]registry.Instance)}
-		backend.services[name] = state
+		r.services[name] = state
 	}
 	return state
 }
 
-func (backend *Registry) snapshot(
+func (r *Registry) snapshot(
 	service string,
 	state *serviceState,
 ) registry.Snapshot {
@@ -149,8 +149,8 @@ func (backend *Registry) snapshot(
 	return snapshot
 }
 
-func (backend *Registry) notify(service string, snapshot registry.Snapshot) {
-	for watcher := range backend.watchers[service] {
+func (r *Registry) notify(service string, snapshot registry.Snapshot) {
+	for watcher := range r.watchers[service] {
 		select {
 		case <-watcher.updates:
 		default:
@@ -171,25 +171,25 @@ type watcher struct {
 	once    sync.Once
 }
 
-func (watcher *watcher) Next(ctx context.Context) (registry.Snapshot, error) {
+func (w *watcher) Next(ctx context.Context) (registry.Snapshot, error) {
 	select {
-	case snapshot := <-watcher.updates:
+	case snapshot := <-w.updates:
 		return snapshot.Clone(), nil
-	case <-watcher.done:
+	case <-w.done:
 		return registry.Snapshot{}, registry.ErrWatcherClosed
-	case <-watcher.parent.Done():
-		return registry.Snapshot{}, context.Cause(watcher.parent)
+	case <-w.parent.Done():
+		return registry.Snapshot{}, context.Cause(w.parent)
 	case <-ctx.Done():
 		return registry.Snapshot{}, context.Cause(ctx)
 	}
 }
 
-func (watcher *watcher) Close() error {
-	watcher.once.Do(func() {
-		watcher.backend.mu.Lock()
-		delete(watcher.backend.watchers[watcher.service], watcher)
-		close(watcher.done)
-		watcher.backend.mu.Unlock()
+func (w *watcher) Close() error {
+	w.once.Do(func() {
+		w.backend.mu.Lock()
+		delete(w.backend.watchers[w.service], w)
+		close(w.done)
+		w.backend.mu.Unlock()
 	})
 	return nil
 }

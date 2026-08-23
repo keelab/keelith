@@ -20,8 +20,8 @@ type ClientOption interface {
 
 type clientOptionFunc func(*clientOptions) error
 
-func (function clientOptionFunc) applyClient(options *clientOptions) error {
-	return function(options)
+func (f clientOptionFunc) applyClient(options *clientOptions) error {
+	return f(options)
 }
 
 type clientOptions struct {
@@ -127,7 +127,7 @@ func NewClient(
 }
 
 // Invoke performs a unary RPC for generated clients.
-func (client *Client) Invoke(
+func (c *Client) Invoke(
 	ctx context.Context,
 	method string,
 	request any,
@@ -151,30 +151,30 @@ func (client *Client) Invoke(
 	) (any, error) {
 		outbound, outboundErr := outboundContext(
 			ctx,
-			client.metadataPolicy,
-			client.propagator,
+			c.metadataPolicy,
+			c.propagator,
 		)
 		if outboundErr != nil {
 			return nil, outboundErr
 		}
-		invokeErr := client.connection.Invoke(
+		invokeErr := c.connection.Invoke(
 			outbound,
 			method,
 			request,
 			reply,
 			options...,
 		)
-		return reply, client.errorCodec.Decode(invokeErr)
+		return reply, c.errorCodec.Decode(invokeErr)
 	})
-	if client.bundle != nil {
-		invoke = client.bundle.Chain()(invoke)
+	if c.bundle != nil {
+		invoke = c.bundle.Chain()(invoke)
 	}
 	_, err = invoke(ctx, request)
 	return err
 }
 
 // NewStream begins a streaming RPC for generated clients.
-func (client *Client) NewStream(
+func (c *Client) NewStream(
 	ctx context.Context,
 	description *ggrpc.StreamDesc,
 	method string,
@@ -201,14 +201,14 @@ func (client *Client) NewStream(
 	) (any, error) {
 		outbound, outboundErr := outboundContext(
 			ctx,
-			client.metadataPolicy,
-			client.propagator,
+			c.metadataPolicy,
+			c.propagator,
 		)
 		if outboundErr != nil {
 			return nil, outboundErr
 		}
 		streamContext, cancelStream := context.WithCancel(outbound)
-		stream, streamErr := client.connection.NewStream(
+		stream, streamErr := c.connection.NewStream(
 			streamContext,
 			description,
 			method,
@@ -216,15 +216,15 @@ func (client *Client) NewStream(
 		)
 		if streamErr != nil {
 			cancelStream()
-			return nil, client.errorCodec.Decode(streamErr)
+			return nil, c.errorCodec.Decode(streamErr)
 		}
 		wrapped := newClientStream(
 			streamContext,
 			stream,
 			cancelStream,
-			client.errorCodec,
-			client.metadataPolicy,
-			client.streamBundle,
+			c.errorCodec,
+			c.metadataPolicy,
+			c.streamBundle,
 			description.ClientStreams && !description.ServerStreams,
 		)
 		if openErr := wrapped.open(); openErr != nil {
@@ -233,8 +233,8 @@ func (client *Client) NewStream(
 		}
 		return wrapped, nil
 	})
-	if client.bundle != nil {
-		invoke = client.bundle.Chain()(invoke)
+	if c.bundle != nil {
+		invoke = c.bundle.Chain()(invoke)
 	}
 	result, err := invoke(ctx, StreamInvocation{
 		FullMethod:    method,

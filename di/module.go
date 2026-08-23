@@ -55,7 +55,7 @@ type Option interface {
 
 type optionFunc func(*moduleBuilder) error
 
-func (function optionFunc) apply(builder *moduleBuilder) error { return function(builder) }
+func (f optionFunc) apply(builder *moduleBuilder) error { return f(builder) }
 
 type moduleBuilder struct {
 	name      string
@@ -144,7 +144,7 @@ type ProviderOption interface {
 
 type providerOptionFunc func(*provider) error
 
-func (function providerOptionFunc) applyProvider(item *provider) error { return function(item) }
+func (f providerOptionFunc) applyProvider(item *provider) error { return f(item) }
 
 type staticProviderSpec struct {
 	call   string

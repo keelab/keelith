@@ -21,21 +21,21 @@ func NewFanout(handlers ...slog.Handler) (slog.Handler, error) {
 		return nil, fmt.Errorf("%w: fanout requires at least one handler", ErrInvalidOption)
 	}
 	cloned := make([]slog.Handler, len(handlers))
-	for index, handler := range handlers {
-		if nilHandler(handler) {
+	for index, h := range handlers {
+		if nilHandler(h) {
 			return nil, fmt.Errorf("%w: fanout handler %d is nil", ErrInvalidOption, index)
 		}
-		cloned[index] = handler
+		cloned[index] = h
 	}
 	return &FanoutHandler{handlers: cloned}, nil
 }
 
 // Enabled reports whether any destination accepts the level.
-func (handler *FanoutHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	if handler == nil {
+func (h *FanoutHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	if h == nil {
 		return false
 	}
-	for _, destination := range handler.handlers {
+	for _, destination := range h.handlers {
 		if destination.Enabled(ctx, level) {
 			return true
 		}
@@ -44,12 +44,12 @@ func (handler *FanoutHandler) Enabled(ctx context.Context, level slog.Level) boo
 }
 
 // Handle dispatches the record to every enabled destination and joins errors.
-func (handler *FanoutHandler) Handle(ctx context.Context, record slog.Record) error {
-	if handler == nil {
+func (h *FanoutHandler) Handle(ctx context.Context, record slog.Record) error {
+	if h == nil {
 		return fmt.Errorf("%w: fanout is nil", ErrInvalidOption)
 	}
 	var result error
-	for _, destination := range handler.handlers {
+	for _, destination := range h.handlers {
 		if destination.Enabled(ctx, record.Level) {
 			result = errors.Join(result, destination.Handle(ctx, record.Clone()))
 		}
@@ -58,34 +58,34 @@ func (handler *FanoutHandler) Handle(ctx context.Context, record slog.Record) er
 }
 
 // WithAttrs derives every destination with the same attributes.
-func (handler *FanoutHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
-	if handler == nil {
-		return handler
+func (h *FanoutHandler) WithAttrs(attributes []slog.Attr) slog.Handler {
+	if h == nil {
+		return h
 	}
-	derived := make([]slog.Handler, 0, len(handler.handlers))
-	for _, destination := range handler.handlers {
+	derived := make([]slog.Handler, 0, len(h.handlers))
+	for _, destination := range h.handlers {
 		derived = append(derived, destination.WithAttrs(attributes))
 	}
 	return &FanoutHandler{handlers: derived}
 }
 
 // WithGroup derives every destination with the same group.
-func (handler *FanoutHandler) WithGroup(name string) slog.Handler {
-	if handler == nil {
-		return handler
+func (h *FanoutHandler) WithGroup(name string) slog.Handler {
+	if h == nil {
+		return h
 	}
-	derived := make([]slog.Handler, 0, len(handler.handlers))
-	for _, destination := range handler.handlers {
+	derived := make([]slog.Handler, 0, len(h.handlers))
+	for _, destination := range h.handlers {
 		derived = append(derived, destination.WithGroup(name))
 	}
 	return &FanoutHandler{handlers: derived}
 }
 
-func nilHandler(handler slog.Handler) bool {
-	if handler == nil {
+func nilHandler(h slog.Handler) bool {
+	if h == nil {
 		return true
 	}
-	value := reflect.ValueOf(handler)
+	value := reflect.ValueOf(h)
 	switch value.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
 		reflect.Pointer, reflect.Slice:

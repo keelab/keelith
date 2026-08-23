@@ -23,29 +23,29 @@ type ContextHandler struct {
 
 // New creates an instance Logger with immutable Resource attributes.
 func New(
-	handler slog.Handler,
+	h slog.Handler,
 	resource *kresource.Resource,
 	redacter Redacter,
 ) (*slog.Logger, error) {
-	if handler == nil || resource == nil {
+	if h == nil || resource == nil {
 		return nil, fmt.Errorf("%w: handler or resource is nil", ErrInvalidOption)
 	}
 	return slog.New(&ContextHandler{
-		handler:  handler.WithAttrs(resource.SlogAttributes()),
+		handler:  h.WithAttrs(resource.SlogAttributes()),
 		redacter: redacter,
 	}), nil
 }
 
 // Enabled delegates level filtering to the wrapped Handler.
-func (handler *ContextHandler) Enabled(
+func (h *ContextHandler) Enabled(
 	ctx context.Context,
 	level slog.Level,
 ) bool {
-	return handler.handler.Enabled(ctx, level)
+	return h.handler.Enabled(ctx, level)
 }
 
 // Handle redacts attributes and adds valid trace correlation before delegation.
-func (handler *ContextHandler) Handle(
+func (h *ContextHandler) Handle(
 	ctx context.Context,
 	record slog.Record,
 ) error {
@@ -56,7 +56,7 @@ func (handler *ContextHandler) Handle(
 		record.PC,
 	)
 	record.Attrs(func(attribute slog.Attr) bool {
-		redacted := handler.redacter.Redact(attribute)
+		redacted := h.redacter.Redact(attribute)
 		if !redacted.Equal(slog.Attr{}) {
 			safe.AddAttrs(redacted)
 		}
@@ -77,30 +77,30 @@ func (handler *ContextHandler) Handle(
 			slog.String("placement.service", current.Service()),
 		)
 	}
-	return handler.handler.Handle(ctx, safe)
+	return h.handler.Handle(ctx, safe)
 }
 
 // WithAttrs returns a derived Handler with defensively redacted attributes.
-func (handler *ContextHandler) WithAttrs(
+func (h *ContextHandler) WithAttrs(
 	attributes []slog.Attr,
 ) slog.Handler {
 	safe := make([]slog.Attr, 0, len(attributes))
 	for _, attribute := range attributes {
-		redacted := handler.redacter.Redact(attribute)
+		redacted := h.redacter.Redact(attribute)
 		if !redacted.Equal(slog.Attr{}) {
 			safe = append(safe, redacted)
 		}
 	}
 	return &ContextHandler{
-		handler:  handler.handler.WithAttrs(safe),
-		redacter: handler.redacter,
+		handler:  h.handler.WithAttrs(safe),
+		redacter: h.redacter,
 	}
 }
 
 // WithGroup returns a derived Handler that preserves redaction.
-func (handler *ContextHandler) WithGroup(name string) slog.Handler {
+func (h *ContextHandler) WithGroup(name string) slog.Handler {
 	return &ContextHandler{
-		handler:  handler.handler.WithGroup(name),
-		redacter: handler.redacter,
+		handler:  h.handler.WithGroup(name),
+		redacter: h.redacter,
 	}
 }

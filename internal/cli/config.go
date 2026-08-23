@@ -270,14 +270,14 @@ func validEnvironmentName(value string) bool {
 	if value == "" || len(value) > 128 {
 		return false
 	}
-	for index, character := range value {
+	for index, r := range value {
 		if index == 0 {
-			if character != '_' && !unicode.IsLetter(character) {
+			if r != '_' && !unicode.IsLetter(r) {
 				return false
 			}
 			continue
 		}
-		if character != '_' && !unicode.IsLetter(character) && !unicode.IsDigit(character) {
+		if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			return false
 		}
 	}

@@ -39,8 +39,8 @@ type ServerOption interface {
 
 type serverOptionFunc func(*serverOptions) error
 
-func (function serverOptionFunc) applyServer(options *serverOptions) error {
-	return function(options)
+func (f serverOptionFunc) applyServer(options *serverOptions) error {
+	return f(options)
 }
 
 // HandlerWrapper installs one application-owned outer HTTP boundary around
@@ -305,93 +305,93 @@ func isNilHTTPHandler(handler nethttp.Handler) bool {
 }
 
 // Name returns the stable App diagnostic name.
-func (server *Server) Name() string {
-	return server.name
+func (s *Server) Name() string {
+	return s.name
 }
 
 // Handler returns the fully limited HTTP handler.
-func (server *Server) Handler() nethttp.Handler {
-	if server == nil {
+func (s *Server) Handler() nethttp.Handler {
+	if s == nil {
 		return nil
 	}
-	return server.handler
+	return s.handler
 }
 
-func (server *Server) baseHandler() nethttp.Handler {
+func (s *Server) baseHandler() nethttp.Handler {
 	return nethttp.HandlerFunc(func(
 		writer nethttp.ResponseWriter,
 		request *nethttp.Request,
 	) {
-		if headerSize(request.Header) > int64(server.maxHeaderBytes) {
-			server.router.writeError(request.Context(), writer, ErrHeaderTooLarge)
+		if headerSize(request.Header) > int64(s.maxHeaderBytes) {
+			s.router.writeError(request.Context(), writer, ErrHeaderTooLarge)
 			return
 		}
-		if request.ContentLength > server.maxRequestBytes {
-			server.router.writeError(request.Context(), writer, ErrRequestTooLarge)
+		if request.ContentLength > s.maxRequestBytes {
+			s.router.writeError(request.Context(), writer, ErrRequestTooLarge)
 			return
 		}
 		request.Body = nethttp.MaxBytesReader(
 			writer,
 			request.Body,
-			server.maxRequestBytes,
+			s.maxRequestBytes,
 		)
-		server.router.ServeHTTP(writer, request)
+		s.router.ServeHTTP(writer, request)
 	})
 }
 
 // Start listens synchronously and begins serving in the background.
-func (server *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
 	if ctx == nil {
 		return ErrNilContext
 	}
-	server.mu.Lock()
-	if server.state != serverStateNew {
-		server.mu.Unlock()
+	s.mu.Lock()
+	if s.state != serverStateNew {
+		s.mu.Unlock()
 		return ErrAlreadyStarted
 	}
-	server.state = serverStateStarting
-	server.mu.Unlock()
-	defer close(server.startDone)
+	s.state = serverStateStarting
+	s.mu.Unlock()
+	defer close(s.startDone)
 
 	var listenConfig net.ListenConfig
-	listener, err := listenConfig.Listen(ctx, "tcp", server.address)
+	listener, err := listenConfig.Listen(ctx, "tcp", s.address)
 	if err != nil {
-		server.completeServe(fmt.Errorf("http transport: listen %q: %w", server.address, err))
-		return fmt.Errorf("http transport: listen %q: %w", server.address, err)
+		s.completeServe(fmt.Errorf("http transport: listen %q: %w", s.address, err))
+		return fmt.Errorf("http transport: listen %q: %w", s.address, err)
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		closeErr := listener.Close()
 		result := errors.Join(cause, closeErr)
-		server.completeServe(result)
+		s.completeServe(result)
 		return result
 	}
 
-	server.mu.Lock()
-	server.listener = listener
-	server.state = serverStateRunning
-	server.mu.Unlock()
-	go server.serve(listener)
+	s.mu.Lock()
+	s.listener = listener
+	s.state = serverStateRunning
+	s.mu.Unlock()
+	go s.serve(listener)
 	return nil
 }
 
 // Stop gracefully drains inflight requests. It is concurrent-safe and
 // idempotent.
-func (server *Server) Stop(ctx context.Context) error {
+func (s *Server) Stop(ctx context.Context) error {
 	if ctx == nil {
 		return ErrNilContext
 	}
 	for {
-		server.mu.Lock()
-		switch server.state {
+		s.mu.Lock()
+		switch s.state {
 		case serverStateNew:
-			server.state = serverStateStopped
-			server.doneOnce.Do(func() { close(server.done) })
-			server.stopOnce.Do(func() { close(server.stopDone) })
-			server.mu.Unlock()
+			s.state = serverStateStopped
+			s.doneOnce.Do(func() { close(s.done) })
+			s.stopOnce.Do(func() { close(s.stopDone) })
+			s.mu.Unlock()
 			return nil
 		case serverStateStarting:
-			startDone := server.startDone
-			server.mu.Unlock()
+			startDone := s.startDone
+			s.mu.Unlock()
 			select {
 			case <-startDone:
 				continue
@@ -399,100 +399,100 @@ func (server *Server) Stop(ctx context.Context) error {
 				return context.Cause(ctx)
 			}
 		case serverStateRunning:
-			server.state = serverStateStopping
-			if !server.shutdownInitiated {
-				server.shutdownInitiated = true
-				go server.shutdown(ctx)
+			s.state = serverStateStopping
+			if !s.shutdownInitiated {
+				s.shutdownInitiated = true
+				go s.shutdown(ctx)
 			}
-			stopDone := server.stopDone
-			server.mu.Unlock()
-			return server.waitStop(ctx, stopDone)
+			stopDone := s.stopDone
+			s.mu.Unlock()
+			return s.waitStop(ctx, stopDone)
 		case serverStateStopping:
-			stopDone := server.stopDone
-			server.mu.Unlock()
-			return server.waitStop(ctx, stopDone)
+			stopDone := s.stopDone
+			s.mu.Unlock()
+			return s.waitStop(ctx, stopDone)
 		case serverStateStopped:
-			err := server.stopErr
-			server.mu.Unlock()
+			err := s.stopErr
+			s.mu.Unlock()
 			return err
 		default:
-			server.mu.Unlock()
+			s.mu.Unlock()
 			return nil
 		}
 	}
 }
 
 // Wait blocks until serving terminates.
-func (server *Server) Wait() error {
-	<-server.done
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	return server.serveErr
+func (s *Server) Wait() error {
+	<-s.done
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.serveErr
 }
 
 // Address returns the allocated listener address after Start.
-func (server *Server) Address() (string, bool) {
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	if server.listener == nil {
+func (s *Server) Address() (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.listener == nil {
 		return "", false
 	}
-	return server.listener.Addr().String(), true
+	return s.listener.Addr().String(), true
 }
 
-func (server *Server) serve(listener net.Listener) {
+func (s *Server) serve(listener net.Listener) {
 	var err error
-	if server.tlsConfig != nil {
-		err = server.httpServer.ServeTLS(listener, "", "")
+	if s.tlsConfig != nil {
+		err = s.httpServer.ServeTLS(listener, "", "")
 	} else {
-		err = server.httpServer.Serve(listener)
+		err = s.httpServer.Serve(listener)
 	}
 	if errors.Is(err, nethttp.ErrServerClosed) {
 		err = nil
 	}
-	server.completeServe(err)
+	s.completeServe(err)
 }
 
-func (server *Server) completeServe(err error) {
-	server.mu.Lock()
-	if server.serveErr == nil {
-		server.serveErr = err
+func (s *Server) completeServe(err error) {
+	s.mu.Lock()
+	if s.serveErr == nil {
+		s.serveErr = err
 	}
-	if server.state != serverStateStopping {
-		server.state = serverStateStopped
+	if s.state != serverStateStopping {
+		s.state = serverStateStopped
 	}
-	server.mu.Unlock()
-	server.doneOnce.Do(func() { close(server.done) })
+	s.mu.Unlock()
+	s.doneOnce.Do(func() { close(s.done) })
 }
 
-func (server *Server) shutdown(ctx context.Context) {
-	err := server.httpServer.Shutdown(ctx)
+func (s *Server) shutdown(ctx context.Context) {
+	err := s.httpServer.Shutdown(ctx)
 	if err != nil {
-		err = errors.Join(err, server.httpServer.Close())
+		err = errors.Join(err, s.httpServer.Close())
 	}
-	<-server.done
-	server.mu.Lock()
-	server.stopErr = errors.Join(err, server.serveErr)
-	server.state = serverStateStopped
-	server.mu.Unlock()
-	server.stopOnce.Do(func() { close(server.stopDone) })
+	<-s.done
+	s.mu.Lock()
+	s.stopErr = errors.Join(err, s.serveErr)
+	s.state = serverStateStopped
+	s.mu.Unlock()
+	s.stopOnce.Do(func() { close(s.stopDone) })
 }
 
-func (server *Server) waitStop(ctx context.Context, stopDone <-chan struct{}) error {
+func (s *Server) waitStop(ctx context.Context, stopDone <-chan struct{}) error {
 	select {
 	case <-stopDone:
-		server.mu.Lock()
-		defer server.mu.Unlock()
-		return server.stopErr
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.stopErr
 	case <-ctx.Done():
 		return context.Cause(ctx)
 	}
 }
 
-func (server *Server) readiness(context.Context) health.Result {
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	if server.state == serverStateRunning {
+func (s *Server) readiness(context.Context) health.Result {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state == serverStateRunning {
 		return health.Pass("HTTP listener is accepting requests")
 	}
 	return health.Fail("HTTP listener is not accepting requests")

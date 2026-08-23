@@ -386,8 +386,8 @@ func parseVariable(raw string) (Variable, error) {
 func splitVerb(raw string) (string, string, error) {
 	depth := 0
 	colon := -1
-	for index, character := range raw {
-		switch character {
+	for index, r := range raw {
+		switch r {
 		case '{':
 			if depth != 0 {
 				return "", "", fmt.Errorf("http template: nested variable")
@@ -482,11 +482,11 @@ func validFieldPath(value string) bool {
 		if segment == "" {
 			return false
 		}
-		for index, character := range segment {
-			valid := character == '_' ||
-				character >= 'a' && character <= 'z' ||
-				character >= 'A' && character <= 'Z' ||
-				index > 0 && character >= '0' && character <= '9'
+		for index, r := range segment {
+			valid := r == '_' ||
+				r >= 'a' && r <= 'z' ||
+				r >= 'A' && r <= 'Z' ||
+				index > 0 && r >= '0' && r <= '9'
 			if !valid {
 				return false
 			}
@@ -618,19 +618,19 @@ func encodePathSegment(value string) string {
 	const hexadecimal = "0123456789ABCDEF"
 	var builder strings.Builder
 	for index := 0; index < len(value); index++ {
-		character := value[index]
-		unreserved := character >= 'a' && character <= 'z' ||
-			character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			character == '-' || character == '_' || character == '.' ||
-			character == '~'
+		r := value[index]
+		unreserved := r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '-' || r == '_' || r == '.' ||
+			r == '~'
 		if unreserved {
-			builder.WriteByte(character)
+			builder.WriteByte(r)
 			continue
 		}
 		builder.WriteByte('%')
-		builder.WriteByte(hexadecimal[character>>4])
-		builder.WriteByte(hexadecimal[character&0x0f])
+		builder.WriteByte(hexadecimal[r>>4])
+		builder.WriteByte(hexadecimal[r&0x0f])
 	}
 	return builder.String()
 }
@@ -683,14 +683,14 @@ func decodePathSegment(raw string, preserveSlash bool) (string, error) {
 	return result, nil
 }
 
-func fromHex(character byte) (byte, bool) {
+func fromHex(r byte) (byte, bool) {
 	switch {
-	case character >= '0' && character <= '9':
-		return character - '0', true
-	case character >= 'a' && character <= 'f':
-		return character - 'a' + 10, true
-	case character >= 'A' && character <= 'F':
-		return character - 'A' + 10, true
+	case r >= '0' && r <= '9':
+		return r - '0', true
+	case r >= 'a' && r <= 'f':
+		return r - 'a' + 10, true
+	case r >= 'A' && r <= 'F':
+		return r - 'A' + 10, true
 	default:
 		return 0, false
 	}

@@ -210,19 +210,19 @@ func NewManager(registrations ...Registration) (*Manager, error) {
 }
 
 // Providers returns registered provider names in lexical order.
-func (manager *Manager) Providers() []string {
-	if manager == nil {
+func (m *Manager) Providers() []string {
+	if m == nil {
 		return nil
 	}
-	return append([]string(nil), manager.names...)
+	return append([]string(nil), m.names...)
 }
 
 // Resolve resolves a reference without caching or logging its value.
-func (manager *Manager) Resolve(
+func (m *Manager) Resolve(
 	ctx context.Context,
 	reference Reference,
 ) (Value, error) {
-	provider, err := manager.provider(reference)
+	provider, err := m.provider(reference)
 	if err != nil {
 		return Value{}, err
 	}
@@ -241,11 +241,11 @@ func (manager *Manager) Resolve(
 // status. It does not inspect, wrap, or expose arbitrary provider errors or
 // cancellation causes. Providers without ClassifiedProvider support are not
 // called and return ResolveStatusUnavailable.
-func (manager *Manager) ResolveClassified(
+func (m *Manager) ResolveClassified(
 	ctx context.Context,
 	reference Reference,
 ) (Value, ResolveStatus) {
-	if isNil(ctx) || manager == nil {
+	if isNil(ctx) || m == nil {
 		return Value{}, ResolveStatusInvalid
 	}
 	if ctx.Err() != nil {
@@ -254,7 +254,7 @@ func (manager *Manager) ResolveClassified(
 	if !validProvider(reference.provider) || !validKey(reference.key) {
 		return Value{}, ResolveStatusInvalid
 	}
-	provider, exists := manager.providers[reference.provider]
+	provider, exists := m.providers[reference.provider]
 	if !exists || isNil(provider) {
 		return Value{}, ResolveStatusInvalid
 	}
@@ -274,11 +274,11 @@ func (manager *Manager) ResolveClassified(
 }
 
 // Watch watches complete replacements for a reference.
-func (manager *Manager) Watch(
+func (m *Manager) Watch(
 	ctx context.Context,
 	reference Reference,
 ) (Watcher, error) {
-	provider, err := manager.provider(reference)
+	provider, err := m.provider(reference)
 	if err != nil {
 		return nil, err
 	}
@@ -299,14 +299,14 @@ func (manager *Manager) Watch(
 	return watcher, nil
 }
 
-func (manager *Manager) provider(reference Reference) (Provider, error) {
-	if manager == nil {
+func (m *Manager) provider(reference Reference) (Provider, error) {
+	if m == nil {
 		return nil, fmt.Errorf("%w: manager is nil", ErrProviderNotFound)
 	}
 	if _, err := NewReference(reference.provider, reference.key); err != nil {
 		return nil, err
 	}
-	provider, exists := manager.providers[reference.provider]
+	provider, exists := m.providers[reference.provider]
 	if !exists {
 		return nil, fmt.Errorf(
 			"%w: %s",
@@ -321,10 +321,10 @@ func validProvider(provider string) bool {
 	if provider == "" || strings.ToLower(provider) != provider {
 		return false
 	}
-	for index, character := range provider {
-		if character >= 'a' && character <= 'z' ||
-			index > 0 && character >= '0' && character <= '9' ||
-			index > 0 && (character == '-' || character == '_') {
+	for index, r := range provider {
+		if r >= 'a' && r <= 'z' ||
+			index > 0 && r >= '0' && r <= '9' ||
+			index > 0 && (r == '-' || r == '_') {
 			continue
 		}
 		return false
@@ -343,8 +343,8 @@ func validKey(key string) bool {
 		if segment == "" || segment == "." || segment == ".." {
 			return false
 		}
-		for _, character := range segment {
-			if unicode.IsControl(character) {
+		for _, r := range segment {
+			if unicode.IsControl(r) {
 				return false
 			}
 		}

@@ -75,13 +75,13 @@ func machineErrorClass(err error) (ErrorClass, bool) {
 	return ErrorClassInternal, false
 }
 
-func (runtime *Runtime) commitMachineError(
+func (r *Runtime) commitMachineError(
 	ctx context.Context,
 	current Snapshot,
 	err error,
 ) (Snapshot, bool, error) {
 	class, classified := machineErrorClass(err)
-	runtime.observe(ctx, Event{
+	r.observe(ctx, Event{
 		Kind:       EventMachineError,
 		Status:     current.Status(),
 		ErrorClass: class,
@@ -108,14 +108,14 @@ func (runtime *Runtime) commitMachineError(
 	if applyErr != nil {
 		return Snapshot{}, true, applyErr
 	}
-	committed, commitErr := runtime.store.Transition(
+	committed, commitErr := r.store.Transition(
 		ctx,
-		runtime.commitRequest(current, next),
+		r.commitRequest(current, next),
 	)
 	if commitErr != nil {
 		return Snapshot{}, true, commitErr
 	}
-	runtime.observe(ctx, Event{
+	r.observe(ctx, Event{
 		Kind:   EventTransition,
 		Status: committed.Status(),
 	})

@@ -113,34 +113,34 @@ func NewConfigBinding(name, path string) (*ConfigBinding, error) {
 }
 
 // Name returns the Manager subscriber identity.
-func (binding *ConfigBinding) Name() string {
-	if binding == nil || binding.component == nil {
+func (b *ConfigBinding) Name() string {
+	if b == nil || b.component == nil {
 		return ""
 	}
-	return binding.component.Name()
+	return b.component.Name()
 }
 
 // Validate strictly decodes and validates the candidate topology before
 // Manager publication.
-func (binding *ConfigBinding) Validate(snapshot kconfig.Snapshot) error {
-	if binding == nil || binding.component == nil || binding.discovery == nil {
+func (b *ConfigBinding) Validate(snapshot kconfig.Snapshot) error {
+	if b == nil || b.component == nil || b.discovery == nil {
 		return fmt.Errorf("%w: binding is nil", ErrInvalidConfig)
 	}
-	return binding.component.Validate(snapshot)
+	return b.component.Validate(snapshot)
 }
 
 // Apply atomically publishes the complete candidate topology.
-func (binding *ConfigBinding) Apply(
+func (b *ConfigBinding) Apply(
 	ctx context.Context,
 	snapshot kconfig.Snapshot,
 ) error {
-	if binding == nil || binding.component == nil || binding.discovery == nil {
+	if b == nil || b.component == nil || b.discovery == nil {
 		return fmt.Errorf("%w: binding is nil", ErrInvalidConfig)
 	}
-	if err := binding.component.Apply(ctx, snapshot); err != nil {
+	if err := b.component.Apply(ctx, snapshot); err != nil {
 		return err
 	}
-	current, ok := binding.component.Current()
+	current, ok := b.component.Current()
 	if !ok {
 		return fmt.Errorf("%w: config was not published", ErrInvalidConfig)
 	}
@@ -148,25 +148,25 @@ func (binding *ConfigBinding) Apply(
 	if err != nil {
 		return err
 	}
-	binding.discovery.replace(snapshot.Revision(), snapshots, instances)
+	b.discovery.replace(snapshot.Revision(), snapshots, instances)
 	return nil
 }
 
 // Discovery returns the stable discovery instance updated by this binding.
-func (binding *ConfigBinding) Discovery() *Discovery {
-	if binding == nil {
+func (b *ConfigBinding) Discovery() *Discovery {
+	if b == nil {
 		return nil
 	}
-	return binding.discovery
+	return b.discovery
 }
 
 // Description returns aggregate topology and typed-binding state.
-func (binding *ConfigBinding) Description() ConfigDescription {
-	if binding == nil || binding.component == nil || binding.discovery == nil {
+func (b *ConfigBinding) Description() ConfigDescription {
+	if b == nil || b.component == nil || b.discovery == nil {
 		return ConfigDescription{}
 	}
-	component := binding.component.Description()
-	discovery := binding.discovery.Describe()
+	component := b.component.Description()
+	discovery := b.discovery.Describe()
 	return ConfigDescription{
 		Name:      component.Name,
 		Path:      component.Path,
@@ -182,11 +182,11 @@ func (binding *ConfigBinding) Description() ConfigDescription {
 
 // Watch creates a full-snapshot watcher whose first value is the latest
 // topology for service, including an empty snapshot for an unknown service.
-func (discovery *Discovery) Watch(
+func (d *Discovery) Watch(
 	ctx context.Context,
 	service string,
 ) (registry.Watcher, error) {
-	if discovery == nil {
+	if d == nil {
 		return nil, fmt.Errorf("%w: discovery is nil", ErrInvalidDiscovery)
 	}
 	if ctx == nil {
@@ -196,65 +196,65 @@ func (discovery *Discovery) Watch(
 		return nil, cause
 	}
 
-	discovery.mu.Lock()
-	initial, ok := discovery.snapshots[service]
+	d.mu.Lock()
+	initial, ok := d.snapshots[service]
 	if !ok {
 		var err error
-		initial, err = registry.NewSnapshot(service, discovery.revision, nil)
+		initial, err = registry.NewSnapshot(service, d.revision, nil)
 		if err != nil {
-			discovery.mu.Unlock()
+			d.mu.Unlock()
 			return nil, err
 		}
 	}
 	subscription := &watcher{
-		discovery: discovery,
+		discovery: d,
 		service:   service,
 		parent:    ctx,
 		updates:   make(chan registry.Snapshot, 1),
 		done:      make(chan struct{}),
 	}
-	serviceWatchers := discovery.watchers[service]
+	serviceWatchers := d.watchers[service]
 	if serviceWatchers == nil {
 		serviceWatchers = make(map[*watcher]struct{})
-		discovery.watchers[service] = serviceWatchers
+		d.watchers[service] = serviceWatchers
 	}
 	serviceWatchers[subscription] = struct{}{}
 	subscription.updates <- initial.Clone()
-	discovery.mu.Unlock()
+	d.mu.Unlock()
 	return subscription, nil
 }
 
 // Describe returns aggregate discovery state.
-func (discovery *Discovery) Describe() Description {
-	if discovery == nil {
+func (d *Discovery) Describe() Description {
+	if d == nil {
 		return Description{}
 	}
-	discovery.mu.Lock()
-	defer discovery.mu.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	watchers := 0
-	for _, serviceWatchers := range discovery.watchers {
+	for _, serviceWatchers := range d.watchers {
 		watchers += len(serviceWatchers)
 	}
 	return Description{
-		Revision:  discovery.revision,
-		Services:  len(discovery.snapshots),
-		Instances: discovery.instances,
+		Revision:  d.revision,
+		Services:  len(d.snapshots),
+		Instances: d.instances,
 		Watchers:  watchers,
-		Updates:   discovery.updates,
+		Updates:   d.updates,
 	}
 }
 
-func (discovery *Discovery) replace(
+func (d *Discovery) replace(
 	revision string,
 	snapshots map[string]registry.Snapshot,
 	instances int,
 ) {
-	discovery.mu.Lock()
-	discovery.revision = revision
-	discovery.snapshots = snapshots
-	discovery.instances = instances
-	discovery.updates++
-	for service, subscriptions := range discovery.watchers {
+	d.mu.Lock()
+	d.revision = revision
+	d.snapshots = snapshots
+	d.instances = instances
+	d.updates++
+	for service, subscriptions := range d.watchers {
 		snapshot, ok := snapshots[service]
 		if !ok {
 			snapshot, _ = registry.NewSnapshot(service, revision, nil)
@@ -270,7 +270,7 @@ func (discovery *Discovery) replace(
 			}
 		}
 	}
-	discovery.mu.Unlock()
+	d.mu.Unlock()
 }
 
 func compile(
@@ -337,7 +337,7 @@ type watcher struct {
 	once      sync.Once
 }
 
-func (subscription *watcher) Next(
+func (w *watcher) Next(
 	ctx context.Context,
 ) (registry.Snapshot, error) {
 	if ctx == nil {
@@ -347,32 +347,32 @@ func (subscription *watcher) Next(
 		)
 	}
 	select {
-	case snapshot := <-subscription.updates:
+	case snapshot := <-w.updates:
 		return snapshot.Clone(), nil
-	case <-subscription.done:
+	case <-w.done:
 		return registry.Snapshot{}, registry.ErrWatcherClosed
-	case <-subscription.parent.Done():
-		return registry.Snapshot{}, context.Cause(subscription.parent)
+	case <-w.parent.Done():
+		return registry.Snapshot{}, context.Cause(w.parent)
 	case <-ctx.Done():
 		return registry.Snapshot{}, context.Cause(ctx)
 	}
 }
 
-func (subscription *watcher) Close() error {
-	if subscription == nil {
+func (w *watcher) Close() error {
+	if w == nil {
 		return nil
 	}
-	subscription.once.Do(func() {
-		subscription.discovery.mu.Lock()
+	w.once.Do(func() {
+		w.discovery.mu.Lock()
 		delete(
-			subscription.discovery.watchers[subscription.service],
-			subscription,
+			w.discovery.watchers[w.service],
+			w,
 		)
-		if len(subscription.discovery.watchers[subscription.service]) == 0 {
-			delete(subscription.discovery.watchers, subscription.service)
+		if len(w.discovery.watchers[w.service]) == 0 {
+			delete(w.discovery.watchers, w.service)
 		}
-		close(subscription.done)
-		subscription.discovery.mu.Unlock()
+		close(w.done)
+		w.discovery.mu.Unlock()
 	})
 	return nil
 }

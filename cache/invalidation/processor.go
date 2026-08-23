@@ -76,37 +76,37 @@ func New(config Config) (*Processor, error) {
 
 // Handle applies every entry. A partial backend failure is safe to retry:
 // already-applied versions become Current on the next delivery.
-func (processor *Processor) Handle(ctx context.Context, message worker.Message) worker.Result {
-	if processor == nil || ctx == nil {
+func (p *Processor) Handle(ctx context.Context, message worker.Message) worker.Result {
+	if p == nil || ctx == nil {
 		return worker.Nack(fmt.Errorf("%w: processor or context", ErrInvalidOption))
 	}
 	event, err := Decode(message.Payload())
-	if err != nil || event.Namespace != processor.namespace {
-		processor.invalid.Add(1)
+	if err != nil || event.Namespace != p.namespace {
+		p.invalid.Add(1)
 		if err == nil {
 			err = fmt.Errorf("%w: namespace mismatch", ErrInvalidEvent)
 		}
 		return worker.DeadLetter(err)
 	}
 	for _, entry := range event.Entries {
-		state, applyErr := processor.apply(
+		state, applyErr := p.apply(
 			ctx,
 			entry.Key,
 			entry.Version,
 		)
 		if applyErr != nil {
-			processor.failures.Add(1)
-			return worker.Retry(fmt.Errorf("cache invalidation: apply: %w", applyErr), processor.retryAfter)
+			p.failures.Add(1)
+			return worker.Retry(fmt.Errorf("cache invalidation: apply: %w", applyErr), p.retryAfter)
 		}
 		switch state {
 		case cache.InvalidationApplied:
-			processor.applied.Add(1)
+			p.applied.Add(1)
 		case cache.InvalidationCurrent:
-			processor.current.Add(1)
+			p.current.Add(1)
 		case cache.InvalidationStale:
-			processor.stale.Add(1)
+			p.stale.Add(1)
 		default:
-			processor.failures.Add(1)
+			p.failures.Add(1)
 			return worker.Nack(fmt.Errorf("%w: target state", ErrInvalidOption))
 		}
 	}
@@ -114,29 +114,29 @@ func (processor *Processor) Handle(ctx context.Context, message worker.Message) 
 }
 
 // Description returns bounded result counters.
-func (processor *Processor) Description() Description {
-	if processor == nil {
+func (p *Processor) Description() Description {
+	if p == nil {
 		return Description{}
 	}
 	return Description{
-		Applied:  processor.applied.Load(),
-		Current:  processor.current.Load(),
-		Stale:    processor.stale.Load(),
-		Failures: processor.failures.Load(),
-		Invalid:  processor.invalid.Load(),
-		Panics:   processor.panics.Load(),
+		Applied:  p.applied.Load(),
+		Current:  p.current.Load(),
+		Stale:    p.stale.Load(),
+		Failures: p.failures.Load(),
+		Invalid:  p.invalid.Load(),
+		Panics:   p.panics.Load(),
 	}
 }
 
-func (processor *Processor) apply(ctx context.Context, key string, version uint64) (state cache.InvalidationState, err error) {
+func (p *Processor) apply(ctx context.Context, key string, version uint64) (state cache.InvalidationState, err error) {
 	defer func() {
 		if recover() != nil {
-			processor.panics.Add(1)
+			p.panics.Add(1)
 			state = 0
 			err = errTargetPanic
 		}
 	}()
-	return processor.target.InvalidateVersion(ctx, key, version)
+	return p.target.InvalidateVersion(ctx, key, version)
 }
 
 func isNil(value any) bool {

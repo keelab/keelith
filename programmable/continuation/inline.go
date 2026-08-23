@@ -38,14 +38,14 @@ type InlineBudget struct {
 // Machine implementations must honor ctx cancellation. A Machine that ignores
 // cancellation cannot be safely abandoned because it may still perform
 // externally visible side effects.
-func (runtime *Runtime) StartCallInline(
+func (r *Runtime) StartCallInline(
 	ctx context.Context,
 	callID CallID,
 	operation Operation,
 	input []byte,
 	budget InlineBudget,
 ) (Snapshot, error) {
-	if runtime == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return Snapshot{}, ErrInvalidRuntime
 	}
 	if budget.Duration <= 0 ||
@@ -55,7 +55,7 @@ func (runtime *Runtime) StartCallInline(
 		return Snapshot{}, ErrInvalidInlineBudget
 	}
 
-	created, err := runtime.StartCall(ctx, callID, operation, input)
+	created, err := r.StartCall(ctx, callID, operation, input)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -66,11 +66,11 @@ func (runtime *Runtime) StartCallInline(
 	)
 	defer cancel()
 
-	claim, err := runtime.leases.Claim(inlineCtx, ClaimRequest{
+	claim, err := r.leases.Claim(inlineCtx, ClaimRequest{
 		CallID:           created.CallID(),
 		ExpectedRevision: created.Revision(),
-		OwnerID:          runtime.executorID,
-		LeaseDuration:    runtime.leaseDuration,
+		OwnerID:          r.executorID,
+		LeaseDuration:    r.leaseDuration,
 	})
 	if err != nil {
 		if inlineBudgetExhausted(inlineCtx) {
@@ -79,40 +79,40 @@ func (runtime *Runtime) StartCallInline(
 		return Snapshot{}, err
 	}
 	current := claim.Snapshot
-	runtime.observe(ctx, Event{
+	r.observe(ctx, Event{
 		Kind:   EventClaim,
 		Status: current.Status(),
 	})
 	leased := true
 	defer func() {
 		if leased {
-			runtime.releaseInline(current)
+			r.releaseInline(current)
 		}
 	}()
 
-	machine, exists := runtime.registry.Resolve(current.Operation())
+	machine, exists := r.registry.Resolve(current.Operation())
 	if !exists {
 		return Snapshot{}, ErrMachineNotFound
 	}
 	for step := 0; step < budget.MaxTransitions; step++ {
 		if inlineBudgetExhausted(inlineCtx) {
-			current = runtime.loadInlineSnapshot(current)
+			current = r.loadInlineSnapshot(current)
 			return current, nil
 		}
-		transition, advanceErr := runtime.advance(
+		transition, advanceErr := r.advance(
 			inlineCtx,
 			machine,
 			current,
 		)
 		if advanceErr != nil {
 			if inlineBudgetExhausted(inlineCtx) {
-				current = runtime.loadInlineSnapshot(current)
+				current = r.loadInlineSnapshot(current)
 				return current, nil
 			}
 			if cause := context.Cause(inlineCtx); cause != nil {
 				return Snapshot{}, cause
 			}
-			committed, handled, handleErr := runtime.commitMachineError(
+			committed, handled, handleErr := r.commitMachineError(
 				inlineCtx,
 				current,
 				advanceErr,
@@ -134,19 +134,19 @@ func (runtime *Runtime) StartCallInline(
 		if applyErr != nil {
 			return Snapshot{}, applyErr
 		}
-		committed, commitErr := runtime.store.Transition(
+		committed, commitErr := r.store.Transition(
 			inlineCtx,
-			runtime.commitRequest(current, next),
+			r.commitRequest(current, next),
 		)
 		if commitErr != nil {
 			if inlineBudgetExhausted(inlineCtx) {
-				current = runtime.loadInlineSnapshot(current)
+				current = r.loadInlineSnapshot(current)
 				return current, nil
 			}
 			return Snapshot{}, commitErr
 		}
 		current = committed
-		runtime.observe(inlineCtx, Event{
+		r.observe(inlineCtx, Event{
 			Kind:   EventTransition,
 			Status: current.Status(),
 		})
@@ -162,24 +162,24 @@ func inlineBudgetExhausted(ctx context.Context) bool {
 	return errors.Is(context.Cause(ctx), ErrInlineBudget)
 }
 
-func (runtime *Runtime) loadInlineSnapshot(fallback Snapshot) Snapshot {
+func (r *Runtime) loadInlineSnapshot(fallback Snapshot) Snapshot {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		inlineCleanupTimeout,
 	)
 	defer cancel()
-	current, err := runtime.store.Load(ctx, fallback.CallID())
+	current, err := r.store.Load(ctx, fallback.CallID())
 	if err != nil {
 		return fallback
 	}
 	return current
 }
 
-func (runtime *Runtime) releaseInline(snapshot Snapshot) {
+func (r *Runtime) releaseInline(snapshot Snapshot) {
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		inlineCleanupTimeout,
 	)
 	defer cancel()
-	runtime.release(ctx, snapshot)
+	r.release(ctx, snapshot)
 }

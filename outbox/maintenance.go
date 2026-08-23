@@ -16,17 +16,17 @@ type ReplayRequest struct {
 }
 
 // Validate rejects ambiguous, duplicate, stale, or unbounded replay input.
-func (request ReplayRequest) Validate(now time.Time) error {
+func (r ReplayRequest) Validate(now time.Time) error {
 	if now.IsZero() ||
-		request.AvailableAt.IsZero() ||
-		request.AvailableAt.Before(now) ||
-		!validIdentity(request.ExpectedReason, 64) ||
-		len(request.IDs) == 0 ||
-		len(request.IDs) > maxReplayIDs {
+		r.AvailableAt.IsZero() ||
+		r.AvailableAt.Before(now) ||
+		!validIdentity(r.ExpectedReason, 64) ||
+		len(r.IDs) == 0 ||
+		len(r.IDs) > maxReplayIDs {
 		return fmt.Errorf("%w: replay request is malformed", ErrInvalidOption)
 	}
-	seen := make(map[string]struct{}, len(request.IDs))
-	for _, id := range request.IDs {
+	seen := make(map[string]struct{}, len(r.IDs))
+	for _, id := range r.IDs {
 		if !validIdentity(id, maxIDBytes) {
 			return fmt.Errorf("%w: replay ID is malformed", ErrInvalidOption)
 		}
@@ -52,11 +52,11 @@ type RetentionRequest struct {
 }
 
 // Validate rejects unbounded retention cleanup.
-func (request RetentionRequest) Validate() error {
-	if request.PublishedBefore.IsZero() ||
-		request.TerminalBefore.IsZero() ||
-		request.Limit <= 0 ||
-		request.Limit > maxClaimLimit {
+func (r RetentionRequest) Validate() error {
+	if r.PublishedBefore.IsZero() ||
+		r.TerminalBefore.IsZero() ||
+		r.Limit <= 0 ||
+		r.Limit > maxClaimLimit {
 		return fmt.Errorf("%w: retention request is malformed", ErrInvalidOption)
 	}
 	return nil

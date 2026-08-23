@@ -8,11 +8,11 @@ import (
 
 func identifier(value string) string {
 	var result strings.Builder
-	for _, character := range value {
-		if unicode.IsLetter(character) ||
-			unicode.IsDigit(character) ||
-			character == '_' {
-			result.WriteRune(character)
+	for _, r := range value {
+		if unicode.IsLetter(r) ||
+			unicode.IsDigit(r) ||
+			r == '_' {
+			result.WriteRune(r)
 		} else {
 			result.WriteByte('_')
 		}

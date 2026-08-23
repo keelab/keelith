@@ -158,41 +158,41 @@ func NewQuotaManager(policy QuotaPolicy) (*QuotaManager, error) {
 
 // AcquireSession reserves one tenant session and initializes its bandwidth
 // bucket. Close must be called exactly once; repeated calls are harmless.
-func (manager *QuotaManager) AcquireSession(
+func (qm *QuotaManager) AcquireSession(
 	tenant Tenant,
 	now time.Time,
 ) (*SessionQuotaLease, error) {
-	if manager == nil || !tenant.Valid() || now.IsZero() {
+	if qm == nil || !tenant.Valid() || now.IsZero() {
 		return nil, ErrInvalidQuota
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	limits, exists := manager.limits[tenant.class]
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+	limits, exists := qm.limits[tenant.class]
 	if !exists {
 		return nil, ErrInvalidQuota
 	}
-	usage := manager.usage[tenant.key]
+	usage := qm.usage[tenant.key]
 	if usage == nil {
 		usage = &tenantUsage{class: tenant.class}
-		manager.usage[tenant.key] = usage
+		qm.usage[tenant.key] = usage
 	}
 	if usage.sessions >= limits.MaxSessions {
 		return nil, quotaError(QuotaSessions, tenant.class, limits.RetryAfter)
 	}
 	usage.sessions++
 	return &SessionQuotaLease{
-		manager: manager,
-		tenant:  tenant,
-		limits:  limits,
-		last:    now,
-		tokens:  float64(limits.BandwidthBurstBytes),
+		qm:     qm,
+		tenant: tenant,
+		limits: limits,
+		last:   now,
+		tokens: float64(limits.BandwidthBurstBytes),
 	}, nil
 }
 
 // SessionQuotaLease accounts cumulative rows, frames, bytes, and bandwidth.
 type SessionQuotaLease struct {
 	mu       sync.Mutex
-	manager  *QuotaManager
+	qm       *QuotaManager
 	tenant   Tenant
 	limits   TenantLimits
 	rows     int64
@@ -268,58 +268,58 @@ func (lease *SessionQuotaLease) Close() error {
 		return nil
 	}
 	lease.released = true
-	manager := lease.manager
+	qm := lease.qm
 	tenant := lease.tenant
 	lease.mu.Unlock()
-	if manager == nil {
+	if qm == nil {
 		return nil
 	}
-	manager.mu.Lock()
-	usage := manager.usage[tenant.key]
+	qm.mu.Lock()
+	usage := qm.usage[tenant.key]
 	if usage != nil {
 		if usage.sessions > 0 {
 			usage.sessions--
 		}
 		if usage.sessions == 0 && usage.disk == 0 {
-			delete(manager.usage, tenant.key)
+			delete(qm.usage, tenant.key)
 		}
 	}
-	manager.mu.Unlock()
+	qm.mu.Unlock()
 	return nil
 }
 
 // DiskQuotaLease reserves owner-side retained snapshot/changelog capacity.
 type DiskQuotaLease struct {
-	manager  *QuotaManager
+	qm       *QuotaManager
 	tenant   Tenant
 	bytes    int64
 	released sync.Once
 }
 
 // ReserveDisk atomically charges retained bytes for one tenant.
-func (manager *QuotaManager) ReserveDisk(
+func (qm *QuotaManager) ReserveDisk(
 	tenant Tenant,
 	bytes int64,
 ) (*DiskQuotaLease, error) {
-	if manager == nil || !tenant.Valid() || bytes <= 0 {
+	if qm == nil || !tenant.Valid() || bytes <= 0 {
 		return nil, ErrInvalidQuota
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	limits, exists := manager.limits[tenant.class]
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+	limits, exists := qm.limits[tenant.class]
 	if !exists {
 		return nil, ErrInvalidQuota
 	}
-	usage := manager.usage[tenant.key]
+	usage := qm.usage[tenant.key]
 	if usage == nil {
 		usage = &tenantUsage{class: tenant.class}
-		manager.usage[tenant.key] = usage
+		qm.usage[tenant.key] = usage
 	}
 	if usage.disk > limits.MaxDiskBytes-bytes {
 		return nil, quotaError(QuotaDisk, tenant.class, limits.RetryAfter)
 	}
 	usage.disk += bytes
-	return &DiskQuotaLease{manager: manager, tenant: tenant, bytes: bytes}, nil
+	return &DiskQuotaLease{qm: qm, tenant: tenant, bytes: bytes}, nil
 }
 
 // Close releases retained disk accounting idempotently.
@@ -328,42 +328,42 @@ func (lease *DiskQuotaLease) Close() error {
 		return nil
 	}
 	lease.released.Do(func() {
-		manager := lease.manager
-		if manager == nil {
+		qm := lease.qm
+		if qm == nil {
 			return
 		}
-		manager.mu.Lock()
-		usage := manager.usage[lease.tenant.key]
+		qm.mu.Lock()
+		usage := qm.usage[lease.tenant.key]
 		if usage != nil {
 			usage.disk -= lease.bytes
 			if usage.sessions == 0 && usage.disk == 0 {
-				delete(manager.usage, lease.tenant.key)
+				delete(qm.usage, lease.tenant.key)
 			}
 		}
-		manager.mu.Unlock()
+		qm.mu.Unlock()
 	})
 	return nil
 }
 
 // ActiveTenants returns the number of opaque accounting buckets.
-func (manager *QuotaManager) ActiveTenants() int {
-	if manager == nil {
+func (qm *QuotaManager) ActiveTenants() int {
+	if qm == nil {
 		return 0
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	return len(manager.usage)
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+	return len(qm.usage)
 }
 
 // SnapshotByClass returns fixed-cardinality usage suitable for metrics.
-func (manager *QuotaManager) SnapshotByClass() []QuotaClassUsage {
-	if manager == nil {
+func (qm *QuotaManager) SnapshotByClass() []QuotaClassUsage {
+	if qm == nil {
 		return nil
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	byClass := make(map[TenantClass]QuotaClassUsage, len(manager.limits))
-	for _, usage := range manager.usage {
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+	byClass := make(map[TenantClass]QuotaClassUsage, len(qm.limits))
+	for _, usage := range qm.usage {
 		current := byClass[usage.class]
 		current.Class = usage.class
 		current.ActiveTenants++

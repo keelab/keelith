@@ -178,8 +178,8 @@ func validValue(value string, required bool) bool {
 	if strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}
@@ -191,8 +191,8 @@ func validMetadataKey(key string) bool {
 	if key == "" || strings.TrimSpace(key) != key {
 		return false
 	}
-	for _, character := range key {
-		if unicode.IsControl(character) || unicode.IsSpace(character) {
+	for _, r := range key {
+		if unicode.IsControl(r) || unicode.IsSpace(r) {
 			return false
 		}
 	}

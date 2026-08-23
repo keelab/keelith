@@ -172,20 +172,20 @@ func NewStore(definition Definition) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &Store{}
-	store.current.Store(&snapshot)
-	return store, nil
+	s := &Store{}
+	s.current.Store(&snapshot)
+	return s, nil
 }
 
 // Update atomically publishes a complete Definition. An invalid candidate
 // leaves the current revision untouched, and an identical revision is ignored.
-func (store *Store) Update(definition Definition) (bool, error) {
-	if store == nil {
+func (s *Store) Update(definition Definition) (bool, error) {
+	if s == nil {
 		return false, fmt.Errorf("%w: store is nil", ErrInvalidDefinition)
 	}
-	store.updateMu.Lock()
-	defer store.updateMu.Unlock()
-	current := store.current.Load()
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+	current := s.current.Load()
 	if current != nil && current.revision == definition.Revision {
 		return false, nil
 	}
@@ -193,35 +193,35 @@ func (store *Store) Update(definition Definition) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	store.current.Store(&next)
-	store.updates.Add(1)
+	s.current.Store(&next)
+	s.updates.Add(1)
 	return true, nil
 }
 
 // Evaluate selects a typed Value from the active immutable snapshot. All
 // failures return the caller-owned fallback with a bounded ErrorCode.
-func (store *Store) Evaluate(
+func (s *Store) Evaluate(
 	ctx context.Context,
 	key string,
 	fallback Value,
 ) Evaluation {
-	if store == nil || store.current.Load() == nil {
+	if s == nil || s.current.Load() == nil {
 		return fallbackEvaluation(fallback, ErrorNotReady)
 	}
-	store.evaluations.Add(1)
+	s.evaluations.Add(1)
 	if ctx == nil {
-		return store.fallback(fallback, ErrorInvalidContext)
+		return s.fallback(fallback, ErrorInvalidContext)
 	}
 	if context.Cause(ctx) != nil {
-		return store.fallback(fallback, ErrorCanceled)
+		return s.fallback(fallback, ErrorCanceled)
 	}
-	snapshot := store.current.Load()
+	snapshot := s.current.Load()
 	flag, exists := snapshot.flags[key]
 	if !exists {
-		return store.fallbackAt(snapshot, fallback, ErrorFlagNotFound)
+		return s.fallbackAt(snapshot, fallback, ErrorFlagNotFound)
 	}
 	if !fallback.valid() || fallback.Kind() != flag.kind {
-		return store.fallbackAt(snapshot, fallback, ErrorTypeMismatch)
+		return s.fallbackAt(snapshot, fallback, ErrorTypeMismatch)
 	}
 	evaluation, _ := EvaluationContextFromContext(ctx)
 	for _, rule := range flag.rules {
@@ -229,7 +229,7 @@ func (store *Store) Evaluate(
 			continue
 		}
 		if rule.variation != "" {
-			store.rulesMatched.Add(1)
+			s.rulesMatched.Add(1)
 			return Evaluation{
 				Value: flag.variations[rule.variation],
 				Details: Details{
@@ -243,7 +243,7 @@ func (store *Store) Evaluate(
 			continue
 		}
 		variant := rolloutVariation(key, rule, evaluation.targetingKey)
-		store.percentageMatched.Add(1)
+		s.percentageMatched.Add(1)
 		return Evaluation{
 			Value: flag.variations[variant],
 			Details: Details{
@@ -253,7 +253,7 @@ func (store *Store) Evaluate(
 			},
 		}
 	}
-	store.defaults.Add(1)
+	s.defaults.Add(1)
 	return Evaluation{
 		Value: flag.variations[flag.defaultVar],
 		Details: Details{
@@ -265,8 +265,8 @@ func (store *Store) Evaluate(
 }
 
 // Boolean evaluates one Boolean flag.
-func (store *Store) Boolean(ctx context.Context, key string, fallback bool) (bool, Details) {
-	result := store.Evaluate(ctx, key, BooleanValue(fallback))
+func (s *Store) Boolean(ctx context.Context, key string, fallback bool) (bool, Details) {
+	result := s.Evaluate(ctx, key, BooleanValue(fallback))
 	value, ok := result.Value.Boolean()
 	if !ok {
 		return fallback, result.Details
@@ -275,8 +275,8 @@ func (store *Store) Boolean(ctx context.Context, key string, fallback bool) (boo
 }
 
 // String evaluates one String flag.
-func (store *Store) String(ctx context.Context, key string, fallback string) (string, Details) {
-	result := store.Evaluate(ctx, key, StringValue(fallback))
+func (s *Store) String(ctx context.Context, key string, fallback string) (string, Details) {
+	result := s.Evaluate(ctx, key, StringValue(fallback))
 	value, ok := result.Value.String()
 	if !ok {
 		return fallback, result.Details
@@ -285,8 +285,8 @@ func (store *Store) String(ctx context.Context, key string, fallback string) (st
 }
 
 // Integer evaluates one Integer flag.
-func (store *Store) Integer(ctx context.Context, key string, fallback int64) (int64, Details) {
-	result := store.Evaluate(ctx, key, IntegerValue(fallback))
+func (s *Store) Integer(ctx context.Context, key string, fallback int64) (int64, Details) {
+	result := s.Evaluate(ctx, key, IntegerValue(fallback))
 	value, ok := result.Value.Integer()
 	if !ok {
 		return fallback, result.Details
@@ -296,12 +296,12 @@ func (store *Store) Integer(ctx context.Context, key string, fallback int64) (in
 
 // Float evaluates one Float flag. A non-finite fallback is rejected as a type
 // mismatch and returned unchanged.
-func (store *Store) Float(ctx context.Context, key string, fallback float64) (float64, Details) {
+func (s *Store) Float(ctx context.Context, key string, fallback float64) (float64, Details) {
 	fallbackValue, err := FloatValue(fallback)
 	if err != nil {
 		return fallback, Details{Reason: ReasonFallback, ErrorCode: ErrorTypeMismatch}
 	}
-	result := store.Evaluate(ctx, key, fallbackValue)
+	result := s.Evaluate(ctx, key, fallbackValue)
 	value, ok := result.Value.Float()
 	if !ok {
 		return fallback, result.Details
@@ -310,19 +310,19 @@ func (store *Store) Float(ctx context.Context, key string, fallback float64) (fl
 }
 
 // Describe returns value-free snapshot and aggregate evaluation diagnostics.
-func (store *Store) Describe() Description {
-	if store == nil {
+func (s *Store) Describe() Description {
+	if s == nil {
 		return Description{}
 	}
 	description := Description{
-		Updates:           store.updates.Load(),
-		Evaluations:       store.evaluations.Load(),
-		Defaults:          store.defaults.Load(),
-		RulesMatched:      store.rulesMatched.Load(),
-		PercentageMatched: store.percentageMatched.Load(),
-		Fallbacks:         store.fallbacks.Load(),
+		Updates:           s.updates.Load(),
+		Evaluations:       s.evaluations.Load(),
+		Defaults:          s.defaults.Load(),
+		RulesMatched:      s.rulesMatched.Load(),
+		PercentageMatched: s.percentageMatched.Load(),
+		Fallbacks:         s.fallbacks.Load(),
 	}
-	if snapshot := store.current.Load(); snapshot != nil {
+	if snapshot := s.current.Load(); snapshot != nil {
 		description.Revision = snapshot.revision
 		description.Flags = len(snapshot.flags)
 		description.Rules = snapshot.rules
@@ -330,13 +330,13 @@ func (store *Store) Describe() Description {
 	return description
 }
 
-func (store *Store) fallback(value Value, code ErrorCode) Evaluation {
-	store.fallbacks.Add(1)
+func (s *Store) fallback(value Value, code ErrorCode) Evaluation {
+	s.fallbacks.Add(1)
 	return fallbackEvaluation(value, code)
 }
 
-func (store *Store) fallbackAt(snapshot *compiledSnapshot, value Value, code ErrorCode) Evaluation {
-	result := store.fallback(value, code)
+func (s *Store) fallbackAt(snapshot *compiledSnapshot, value Value, code ErrorCode) Evaluation {
+	result := s.fallback(value, code)
 	if snapshot != nil {
 		result.Details.Revision = snapshot.revision
 	}
@@ -571,11 +571,11 @@ func validFlagKey(value string) bool {
 	if !validIdentity(value) {
 		return false
 	}
-	for index, character := range value {
-		if unicode.IsLower(character) || character == '-' || character == '_' {
+	for index, r := range value {
+		if unicode.IsLower(r) || r == '-' || r == '_' {
 			continue
 		}
-		if index > 0 && (unicode.IsDigit(character) || character == '.') {
+		if index > 0 && (unicode.IsDigit(r) || r == '.') {
 			continue
 		}
 		return false
@@ -587,8 +587,8 @@ func validIdentity(value string) bool {
 	if value == "" || len(value) > maxIdentityBytes || strings.TrimSpace(value) != value || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

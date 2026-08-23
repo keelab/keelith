@@ -60,14 +60,14 @@ type AuthorizerFunc func(
 	any,
 ) (Decision, error)
 
-// Authorize calls function.
-func (function AuthorizerFunc) Authorize(
+// Authorize delegates to fn.
+func (fn AuthorizerFunc) Authorize(
 	ctx context.Context,
 	principal security.Principal,
 	target operation.Operation,
 	request any,
 ) (Decision, error) {
-	return function(ctx, principal, target, request)
+	return fn(ctx, principal, target, request)
 }
 
 // Middleware enforces authorization after authentication.

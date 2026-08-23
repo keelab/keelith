@@ -25,37 +25,37 @@ func New(initial config.Snapshot) *Source {
 }
 
 // Load returns the current complete Snapshot.
-func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
+func (s *Source) Load(ctx context.Context) (config.Snapshot, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return config.Snapshot{}, cause
 	}
-	source.mu.Lock()
-	defer source.mu.Unlock()
-	return source.current.Clone(), nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.current.Clone(), nil
 }
 
 // Watch creates a watcher for future complete Snapshots.
-func (source *Source) Watch(ctx context.Context) (config.Watcher, error) {
+func (s *Source) Watch(ctx context.Context) (config.Watcher, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
 	watcher := &watcher{
-		source:  source,
+		source:  s,
 		updates: make(chan config.Snapshot, 1),
 		done:    make(chan struct{}),
 	}
-	source.mu.Lock()
-	source.watchers[watcher] = struct{}{}
-	source.mu.Unlock()
+	s.mu.Lock()
+	s.watchers[watcher] = struct{}{}
+	s.mu.Unlock()
 	return watcher, nil
 }
 
 // Update atomically replaces the current Snapshot and notifies watchers.
-func (source *Source) Update(snapshot config.Snapshot) {
+func (s *Source) Update(snapshot config.Snapshot) {
 	update := snapshot.Clone()
-	source.mu.Lock()
-	source.current = update
-	for watcher := range source.watchers {
+	s.mu.Lock()
+	s.current = update
+	for watcher := range s.watchers {
 		select {
 		case <-watcher.updates:
 		default:
@@ -65,14 +65,14 @@ func (source *Source) Update(snapshot config.Snapshot) {
 		default:
 		}
 	}
-	source.mu.Unlock()
+	s.mu.Unlock()
 }
 
 // WatcherCount returns the number of currently open watchers.
-func (source *Source) WatcherCount() int {
-	source.mu.Lock()
-	defer source.mu.Unlock()
-	return len(source.watchers)
+func (s *Source) WatcherCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.watchers)
 }
 
 type watcher struct {
@@ -82,23 +82,23 @@ type watcher struct {
 	once    sync.Once
 }
 
-func (watcher *watcher) Next(ctx context.Context) (config.Snapshot, error) {
+func (w *watcher) Next(ctx context.Context) (config.Snapshot, error) {
 	select {
-	case snapshot := <-watcher.updates:
+	case snapshot := <-w.updates:
 		return snapshot.Clone(), nil
-	case <-watcher.done:
+	case <-w.done:
 		return config.Snapshot{}, config.ErrWatcherClosed
 	case <-ctx.Done():
 		return config.Snapshot{}, context.Cause(ctx)
 	}
 }
 
-func (watcher *watcher) Close() error {
-	watcher.once.Do(func() {
-		watcher.source.mu.Lock()
-		delete(watcher.source.watchers, watcher)
-		close(watcher.done)
-		watcher.source.mu.Unlock()
+func (w *watcher) Close() error {
+	w.once.Do(func() {
+		w.source.mu.Lock()
+		delete(w.source.watchers, w)
+		close(w.done)
+		w.source.mu.Unlock()
 	})
 	return nil
 }

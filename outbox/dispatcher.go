@@ -138,16 +138,16 @@ func New(config Config) (*Dispatcher, error) {
 }
 
 // Name returns the stable App server identity.
-func (dispatcher *Dispatcher) Name() string {
-	if dispatcher == nil {
+func (d *Dispatcher) Name() string {
+	if d == nil {
 		return ""
 	}
-	return dispatcher.config.Name
+	return d.config.Name
 }
 
 // Start begins polling and returns after the runtime is ready.
-func (dispatcher *Dispatcher) Start(ctx context.Context) error {
-	if dispatcher == nil {
+func (d *Dispatcher) Start(ctx context.Context) error {
+	if d == nil {
 		return fmt.Errorf("%w: dispatcher is nil", ErrInvalidOption)
 	}
 	if ctx == nil {
@@ -156,46 +156,46 @@ func (dispatcher *Dispatcher) Start(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	dispatcher.mu.Lock()
-	if dispatcher.started {
-		dispatcher.mu.Unlock()
+	d.mu.Lock()
+	if d.started {
+		d.mu.Unlock()
 		return fmt.Errorf("%w: already started", ErrInvalidOption)
 	}
 	pollCtx, pollCancel := context.WithCancelCause(context.Background())
 	deliveryCtx, deliveryCancel := context.WithCancelCause(context.Background())
-	dispatcher.pollCancel = pollCancel
-	dispatcher.deliveryCancel = deliveryCancel
-	dispatcher.started = true
-	dispatcher.mu.Unlock()
-	go dispatcher.run(pollCtx, deliveryCtx)
+	d.pollCancel = pollCancel
+	d.deliveryCancel = deliveryCancel
+	d.started = true
+	d.mu.Unlock()
+	go d.run(pollCtx, deliveryCtx)
 	return nil
 }
 
 // Stop prevents new claims and drains the current bounded batch.
-func (dispatcher *Dispatcher) Stop(ctx context.Context) error {
-	if dispatcher == nil {
+func (d *Dispatcher) Stop(ctx context.Context) error {
+	if d == nil {
 		return nil
 	}
 	if ctx == nil {
 		return fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
-	dispatcher.mu.Lock()
-	if !dispatcher.started {
-		dispatcher.mu.Unlock()
+	d.mu.Lock()
+	if !d.started {
+		d.mu.Unlock()
 		return nil
 	}
-	dispatcher.stopRequested = true
-	pollCancel := dispatcher.pollCancel
-	deliveryCancel := dispatcher.deliveryCancel
-	dispatcher.mu.Unlock()
-	dispatcher.stopOnce.Do(func() {
+	d.stopRequested = true
+	pollCancel := d.pollCancel
+	deliveryCancel := d.deliveryCancel
+	d.mu.Unlock()
+	d.stopOnce.Do(func() {
 		if pollCancel != nil {
 			pollCancel(context.Canceled)
 		}
 	})
 	select {
-	case <-dispatcher.done:
-		return dispatcher.waitError()
+	case <-d.done:
+		return d.waitError()
 	case <-ctx.Done():
 		if deliveryCancel != nil {
 			deliveryCancel(context.Cause(ctx))
@@ -205,164 +205,164 @@ func (dispatcher *Dispatcher) Stop(ctx context.Context) error {
 }
 
 // Wait reports terminal runtime failure after Start.
-func (dispatcher *Dispatcher) Wait() error {
-	if dispatcher == nil {
+func (d *Dispatcher) Wait() error {
+	if d == nil {
 		return nil
 	}
-	dispatcher.mu.Lock()
-	started := dispatcher.started
-	dispatcher.mu.Unlock()
+	d.mu.Lock()
+	started := d.started
+	d.mu.Unlock()
 	if !started {
 		return ErrNotStarted
 	}
-	<-dispatcher.done
-	return dispatcher.waitError()
+	<-d.done
+	return d.waitError()
 }
 
 // Description returns lifecycle and low-cardinality settlement counters.
-func (dispatcher *Dispatcher) Description() Description {
-	if dispatcher == nil {
+func (d *Dispatcher) Description() Description {
+	if d == nil {
 		return Description{}
 	}
-	dispatcher.mu.Lock()
+	d.mu.Lock()
 	description := Description{
-		Name:          dispatcher.config.Name,
-		Running:       dispatcher.started && !dispatcher.finished,
-		StopRequested: dispatcher.stopRequested,
-		Finished:      dispatcher.finished,
-		Failed:        dispatcher.runErr != nil,
-		InFlight:      dispatcher.inflight,
+		Name:          d.config.Name,
+		Running:       d.started && !d.finished,
+		StopRequested: d.stopRequested,
+		Finished:      d.finished,
+		Failed:        d.runErr != nil,
+		InFlight:      d.inflight,
 	}
-	dispatcher.mu.Unlock()
-	description.Claimed = dispatcher.claimed.Load()
-	description.Published = dispatcher.published.Load()
-	description.Rescheduled = dispatcher.rescheduled.Load()
-	description.Terminal = dispatcher.terminal.Load()
-	description.RepositoryFailures = dispatcher.repositoryFailures.Load()
-	description.PublisherFailures = dispatcher.publisherFailures.Load()
+	d.mu.Unlock()
+	description.Claimed = d.claimed.Load()
+	description.Published = d.published.Load()
+	description.Rescheduled = d.rescheduled.Load()
+	description.Terminal = d.terminal.Load()
+	description.RepositoryFailures = d.repositoryFailures.Load()
+	description.PublisherFailures = d.publisherFailures.Load()
 	description.ConsecutiveRepositoryFailures =
-		dispatcher.consecutiveRepositoryFailures.Load()
+		d.consecutiveRepositoryFailures.Load()
 	description.ConsecutivePublisherFailures =
-		dispatcher.consecutivePublisherFailures.Load()
+		d.consecutivePublisherFailures.Load()
 	return description
 }
 
-func (dispatcher *Dispatcher) run(
+func (d *Dispatcher) run(
 	pollCtx context.Context,
 	deliveryCtx context.Context,
 ) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			dispatcher.setRunError(fmt.Errorf("outbox: dispatcher panic"))
+			d.setRunError(fmt.Errorf("outbox: dispatcher panic"))
 		}
-		dispatcher.mu.Lock()
-		dispatcher.finished = true
-		dispatcher.inflight = 0
-		dispatcher.mu.Unlock()
-		close(dispatcher.done)
+		d.mu.Lock()
+		d.finished = true
+		d.inflight = 0
+		d.mu.Unlock()
+		close(d.done)
 	}()
 	for {
 		if context.Cause(pollCtx) != nil {
 			return
 		}
-		messages, err := dispatcher.config.Repository.Claim(
+		messages, err := d.config.Repository.Claim(
 			pollCtx,
 			ClaimRequest{
-				Owner:      dispatcher.config.Owner,
-				Limit:      dispatcher.config.BatchSize,
-				LeaseUntil: time.Now().UTC().Add(dispatcher.config.LeaseTTL),
+				Owner:      d.config.Owner,
+				Limit:      d.config.BatchSize,
+				LeaseUntil: time.Now().UTC().Add(d.config.LeaseTTL),
 			},
 		)
 		if err != nil {
 			if context.Cause(pollCtx) != nil {
 				return
 			}
-			dispatcher.repositoryFailures.Add(1)
-			dispatcher.consecutiveRepositoryFailures.Add(1)
-			if !wait(pollCtx, dispatcher.config.ErrorDelay) {
+			d.repositoryFailures.Add(1)
+			d.consecutiveRepositoryFailures.Add(1)
+			if !wait(pollCtx, d.config.ErrorDelay) {
 				return
 			}
 			continue
 		}
-		dispatcher.consecutiveRepositoryFailures.Store(0)
-		if len(messages) > dispatcher.config.BatchSize {
-			dispatcher.repositoryFailures.Add(1)
-			dispatcher.consecutiveRepositoryFailures.Add(1)
-			dispatcher.setRunError(fmt.Errorf(
+		d.consecutiveRepositoryFailures.Store(0)
+		if len(messages) > d.config.BatchSize {
+			d.repositoryFailures.Add(1)
+			d.consecutiveRepositoryFailures.Add(1)
+			d.setRunError(fmt.Errorf(
 				"outbox: repository returned %d messages for limit %d",
 				len(messages),
-				dispatcher.config.BatchSize,
+				d.config.BatchSize,
 			))
 			return
 		}
 		if len(messages) == 0 {
-			if !wait(pollCtx, dispatcher.config.PollInterval) {
+			if !wait(pollCtx, d.config.PollInterval) {
 				return
 			}
 			continue
 		}
-		dispatcher.claimed.Add(uint64(len(messages)))
+		d.claimed.Add(uint64(len(messages)))
 		for _, message := range messages {
-			dispatcher.process(deliveryCtx, message)
+			d.process(deliveryCtx, message)
 		}
 	}
 }
 
-func (dispatcher *Dispatcher) process(
+func (d *Dispatcher) process(
 	deliveryCtx context.Context,
 	message Message,
 ) {
 	if err := message.Validate(); err != nil || message.Attempts <= 0 {
-		dispatcher.settleFailure(message, true, "invalid_message")
+		d.settleFailure(message, true, "invalid_message")
 		return
 	}
-	dispatcher.mu.Lock()
-	dispatcher.inflight++
-	dispatcher.mu.Unlock()
+	d.mu.Lock()
+	d.inflight++
+	d.mu.Unlock()
 	defer func() {
-		dispatcher.mu.Lock()
-		dispatcher.inflight--
-		dispatcher.mu.Unlock()
+		d.mu.Lock()
+		d.inflight--
+		d.mu.Unlock()
 	}()
 
 	publishCtx, cancelPublish := context.WithTimeout(
 		deliveryCtx,
-		dispatcher.config.PublishTimeout,
+		d.config.PublishTimeout,
 	)
-	err := dispatcher.publish(
+	err := d.publish(
 		publishCtx,
 		message.Clone(),
 	)
 	cancelPublish()
 	if err == nil {
-		dispatcher.consecutivePublisherFailures.Store(0)
-		settlementCtx, cancelSettlement := dispatcher.settlementContext()
-		err = dispatcher.config.Repository.Complete(
+		d.consecutivePublisherFailures.Store(0)
+		settlementCtx, cancelSettlement := d.settlementContext()
+		err = d.config.Repository.Complete(
 			settlementCtx,
-			dispatcher.config.Owner,
+			d.config.Owner,
 			message.ID,
 		)
 		cancelSettlement()
 		if err == nil {
-			dispatcher.consecutiveRepositoryFailures.Store(0)
-			dispatcher.published.Add(1)
+			d.consecutiveRepositoryFailures.Store(0)
+			d.published.Add(1)
 			return
 		}
-		dispatcher.repositoryFailures.Add(1)
-		dispatcher.consecutiveRepositoryFailures.Add(1)
+		d.repositoryFailures.Add(1)
+		d.consecutiveRepositoryFailures.Add(1)
 		return
 	}
-	dispatcher.publisherFailures.Add(1)
-	dispatcher.consecutivePublisherFailures.Add(1)
-	terminal := message.Attempts >= dispatcher.config.MaxAttempts
-	reason := dispatcher.classifyFailure(err)
+	d.publisherFailures.Add(1)
+	d.consecutivePublisherFailures.Add(1)
+	terminal := message.Attempts >= d.config.MaxAttempts
+	reason := d.classifyFailure(err)
 	if !validIdentity(reason, 64) {
 		reason = "publish_failed"
 	}
-	dispatcher.settleFailure(message, terminal, reason)
+	d.settleFailure(message, terminal, reason)
 }
 
-func (dispatcher *Dispatcher) publish(
+func (d *Dispatcher) publish(
 	ctx context.Context,
 	message Message,
 ) (err error) {
@@ -371,31 +371,31 @@ func (dispatcher *Dispatcher) publish(
 			err = fmt.Errorf("outbox: publisher panic")
 		}
 	}()
-	return dispatcher.config.Publisher.Publish(ctx, message)
+	return d.config.Publisher.Publish(ctx, message)
 }
 
-func (dispatcher *Dispatcher) classifyFailure(err error) (reason string) {
+func (d *Dispatcher) classifyFailure(err error) (reason string) {
 	defer func() {
 		if recover() != nil {
 			reason = "publish_failed"
 		}
 	}()
-	return dispatcher.config.ClassifyFailure(err)
+	return d.config.ClassifyFailure(err)
 }
 
-func (dispatcher *Dispatcher) settleFailure(
+func (d *Dispatcher) settleFailure(
 	message Message,
 	terminal bool,
 	reason string,
 ) {
 	next := time.Now().UTC()
 	if !terminal {
-		next = next.Add(dispatcher.retryDelay(message.Attempts))
+		next = next.Add(d.retryDelay(message.Attempts))
 	}
-	settlementCtx, cancel := dispatcher.settlementContext()
-	err := dispatcher.config.Repository.Reschedule(
+	settlementCtx, cancel := d.settlementContext()
+	err := d.config.Repository.Reschedule(
 		settlementCtx,
-		dispatcher.config.Owner,
+		d.config.Owner,
 		message.ID,
 		next,
 		terminal,
@@ -403,53 +403,53 @@ func (dispatcher *Dispatcher) settleFailure(
 	)
 	cancel()
 	if err != nil {
-		dispatcher.repositoryFailures.Add(1)
-		dispatcher.consecutiveRepositoryFailures.Add(1)
+		d.repositoryFailures.Add(1)
+		d.consecutiveRepositoryFailures.Add(1)
 		return
 	}
-	dispatcher.consecutiveRepositoryFailures.Store(0)
+	d.consecutiveRepositoryFailures.Store(0)
 	if terminal {
-		dispatcher.terminal.Add(1)
+		d.terminal.Add(1)
 	} else {
-		dispatcher.rescheduled.Add(1)
+		d.rescheduled.Add(1)
 	}
 }
 
-func (dispatcher *Dispatcher) retryDelay(attempts int) time.Duration {
-	delay := dispatcher.config.RetryBase
+func (d *Dispatcher) retryDelay(attempts int) time.Duration {
+	delay := d.config.RetryBase
 	for attempt := 1; attempt < attempts; attempt++ {
-		if delay >= dispatcher.config.RetryMax/2 {
-			return dispatcher.config.RetryMax
+		if delay >= d.config.RetryMax/2 {
+			return d.config.RetryMax
 		}
 		delay *= 2
 	}
-	if delay > dispatcher.config.RetryMax {
-		return dispatcher.config.RetryMax
+	if delay > d.config.RetryMax {
+		return d.config.RetryMax
 	}
 	return delay
 }
 
-func (dispatcher *Dispatcher) settlementContext() (
+func (d *Dispatcher) settlementContext() (
 	context.Context,
 	context.CancelFunc,
 ) {
 	timeout := min(
-		dispatcher.config.PublishTimeout,
-		dispatcher.config.LeaseTTL/2,
+		d.config.PublishTimeout,
+		d.config.LeaseTTL/2,
 	)
 	return context.WithTimeout(context.Background(), timeout)
 }
 
-func (dispatcher *Dispatcher) setRunError(err error) {
-	dispatcher.mu.Lock()
-	dispatcher.runErr = err
-	dispatcher.mu.Unlock()
+func (d *Dispatcher) setRunError(err error) {
+	d.mu.Lock()
+	d.runErr = err
+	d.mu.Unlock()
 }
 
-func (dispatcher *Dispatcher) waitError() error {
-	dispatcher.mu.Lock()
-	defer dispatcher.mu.Unlock()
-	return dispatcher.runErr
+func (d *Dispatcher) waitError() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.runErr
 }
 
 func wait(ctx context.Context, delay time.Duration) bool {

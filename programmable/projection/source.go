@@ -23,17 +23,17 @@ type SubscribeRequest struct {
 }
 
 // Validate checks schema identity and mutually exclusive snapshot/resume state.
-func (request SubscribeRequest) Validate() error {
-	if err := request.Schema.Validate(); err != nil {
+func (r SubscribeRequest) Validate() error {
+	if err := r.Schema.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidSubscription, err)
 	}
-	if request.ForceSnapshot {
-		if request.After != "" {
+	if r.ForceSnapshot {
+		if r.After != "" {
 			return fmt.Errorf("%w: forced snapshot has a resume cursor", ErrInvalidSubscription)
 		}
 		return nil
 	}
-	if err := request.After.Validate(); err != nil {
+	if err := r.After.Validate(); err != nil {
 		return fmt.Errorf("%w: resume cursor: %w", ErrInvalidSubscription, err)
 	}
 	return nil

@@ -32,8 +32,8 @@ func NewPeer(network, address string) (Peer, error) {
 		return Peer{}, fmt.Errorf("%w: peer address is empty, oversized, or malformed", ErrInvalid)
 	}
 
-	for _, character := range normalizedAddress {
-		if unicode.IsControl(character) {
+	for _, r := range normalizedAddress {
+		if unicode.IsControl(r) {
 			return Peer{}, fmt.Errorf("%w: peer address contains a control character", ErrInvalid)
 		}
 	}

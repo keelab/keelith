@@ -71,8 +71,8 @@ func validCapability(value Capability) bool {
 	if text == "" || len(text) > maxCapabilityNameSize || strings.TrimSpace(text) != text {
 		return false
 	}
-	for _, character := range text {
-		if unicode.IsControl(character) {
+	for _, r := range text {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

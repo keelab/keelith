@@ -32,14 +32,14 @@ func ParseRequestID(value string) (string, error) {
 	if value == "" || len(value) > MaxRequestIDBytes {
 		return "", fmt.Errorf("%w: value is empty or oversized", ErrInvalidRequestID)
 	}
-	for _, character := range value {
-		valid := character >= 'a' && character <= 'z' ||
-			character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			character == '-' ||
-			character == '_' ||
-			character == '.' ||
-			character == ':'
+	for _, r := range value {
+		valid := r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '-' ||
+			r == '_' ||
+			r == '.' ||
+			r == ':'
 		if !valid {
 			return "", fmt.Errorf("%w: value contains an unsupported character", ErrInvalidRequestID)
 		}

@@ -186,12 +186,12 @@ func validIdempotencyNamespace(value string) bool {
 	if value == "" || len(value) > 128 {
 		return false
 	}
-	for _, character := range value {
-		if (character >= 'a' && character <= 'z') ||
-			(character >= 'A' && character <= 'Z') ||
-			(character >= '0' && character <= '9') ||
-			character == '-' || character == '_' || character == '.' ||
-			character == '/' {
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == '-' || r == '_' || r == '.' ||
+			r == '/' {
 			continue
 		}
 		return false
@@ -203,10 +203,10 @@ func validIdempotencyMetadataKey(value string) bool {
 	if value == "" || len(value) > 128 {
 		return false
 	}
-	for _, character := range value {
-		if (character >= 'a' && character <= 'z') ||
-			(character >= '0' && character <= '9') ||
-			character == '-' || character == '_' || character == '.' {
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') ||
+			(r >= '0' && r <= '9') ||
+			r == '-' || r == '_' || r == '.' {
 			continue
 		}
 		return false
@@ -855,9 +855,9 @@ func validProjectionFingerprint(value string) bool {
 	if len(value) != 64 {
 		return false
 	}
-	for _, character := range value {
-		if character >= '0' && character <= '9' ||
-			character >= 'a' && character <= 'f' {
+	for _, r := range value {
+		if r >= '0' && r <= '9' ||
+			r >= 'a' && r <= 'f' {
 			continue
 		}
 		return false
@@ -872,8 +872,8 @@ func validDependencyOptionValue(value string) bool {
 		strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}
@@ -1055,11 +1055,11 @@ func validHTTPFieldPath(path string, allowNested bool) bool {
 		if segment == "" {
 			return false
 		}
-		for index, character := range segment {
-			valid := character == '_' ||
-				character >= 'a' && character <= 'z' ||
-				character >= 'A' && character <= 'Z' ||
-				index > 0 && character >= '0' && character <= '9'
+		for index, r := range segment {
+			valid := r == '_' ||
+				r >= 'a' && r <= 'z' ||
+				r >= 'A' && r <= 'Z' ||
+				index > 0 && r >= '0' && r <= '9'
 			if !valid {
 				return false
 			}

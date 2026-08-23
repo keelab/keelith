@@ -38,8 +38,8 @@ type ClientOption interface {
 
 type clientOptionFunc func(*clientOptions) error
 
-func (function clientOptionFunc) applyClient(options *clientOptions) error {
-	return function(options)
+func (f clientOptionFunc) applyClient(options *clientOptions) error {
+	return f(options)
 }
 
 type clientOptions struct {
@@ -133,7 +133,7 @@ func WithClientPicker(picker kclient.Picker) ClientOption {
 
 // Client executes HTTP calls through Keelith's outbound invocation model.
 type Client struct {
-	client           *nethttp.Client
+	httpClient       *nethttp.Client
 	bundle           *middleware.Bundle
 	metadataPolicy   metadata.Policy
 	maxResponseBytes int64
@@ -143,8 +143,8 @@ type Client struct {
 }
 
 // NewClient constructs a Client around an explicit standard HTTP client.
-func NewClient(client *nethttp.Client, optionList ...ClientOption) (*Client, error) {
-	if client == nil {
+func NewClient(c *nethttp.Client, optionList ...ClientOption) (*Client, error) {
+	if c == nil {
 		return nil, fmt.Errorf("%w: HTTP client is nil", ErrInvalidOption)
 	}
 	options := clientOptions{
@@ -160,8 +160,8 @@ func NewClient(client *nethttp.Client, optionList ...ClientOption) (*Client, err
 		}
 	}
 	if options.tlsConfig != nil {
-		cloned := *client
-		switch transport := client.Transport.(type) {
+		cloned := *c
+		switch transport := c.Transport.(type) {
 		case nil:
 			defaultTransport, ok := nethttp.DefaultTransport.(*nethttp.Transport)
 			if !ok {
@@ -187,13 +187,13 @@ func NewClient(client *nethttp.Client, optionList ...ClientOption) (*Client, err
 			return nil, fmt.Errorf(
 				"%w: client TLS requires *http.Transport, got %T",
 				ErrInvalidOption,
-				client.Transport,
+				c.Transport,
 			)
 		}
-		client = &cloned
+		c = &cloned
 	}
 	return &Client{
-		client:           client,
+		httpClient:       c,
 		bundle:           options.bundle,
 		metadataPolicy:   options.metadataPolicy,
 		maxResponseBytes: options.maxResponseBytes,
@@ -204,7 +204,7 @@ func NewClient(client *nethttp.Client, optionList ...ClientOption) (*Client, err
 }
 
 // Invoke executes call through outbound middleware.
-func (client *Client) Invoke(
+func (c *Client) Invoke(
 	ctx context.Context,
 	target operation.Operation,
 	call ClientCall,
@@ -224,7 +224,7 @@ func (client *Client) Invoke(
 	}
 	network := call.Request.URL.Scheme
 	address := call.Request.URL.Host
-	if client.picker != nil {
+	if c.picker != nil {
 		network = ""
 		address = ""
 	}
@@ -233,14 +233,14 @@ func (client *Client) Invoke(
 		return nil, fmt.Errorf("%w: request info: %w", ErrInvalidCall, err)
 	}
 	ctx = operation.WithRequestInfo(ctx, requestInfo)
-	handler := middleware.Handler(client.invoke)
-	if client.bundle != nil {
-		handler = client.bundle.Chain()(handler)
+	handler := middleware.Handler(c.invoke)
+	if c.bundle != nil {
+		handler = c.bundle.Chain()(handler)
 	}
 	return handler(ctx, call)
 }
 
-func (client *Client) invoke(
+func (c *Client) invoke(
 	ctx context.Context,
 	request any,
 ) (responseValue any, resultErr error) {
@@ -249,12 +249,12 @@ func (client *Client) invoke(
 		return nil, fmt.Errorf("%w: request type %T", ErrInvalidCall, request)
 	}
 	outboundRequest := call.Request.Clone(ctx)
-	if client.picker != nil {
+	if c.picker != nil {
 		target, exists := operation.FromContext(ctx)
 		if !exists {
 			return nil, fmt.Errorf("%w: operation is missing", ErrInvalidCall)
 		}
-		node, done, err := client.picker.Pick(ctx, target)
+		node, done, err := c.picker.Pick(ctx, target)
 		if err != nil {
 			return nil, dependencyFailure(err)
 		}
@@ -297,21 +297,21 @@ func (client *Client) invoke(
 		outboundRequest.URL.Scheme = endpoint.Scheme
 		outboundRequest.URL.Host = endpoint.Host
 	}
-	if client.propagator != nil {
-		client.propagator.Inject(
+	if c.propagator != nil {
+		c.propagator.Inject(
 			ctx,
 			propagation.HeaderCarrier(outboundRequest.Header),
 		)
 	}
 	if outbound, ok := metadata.Outbound(ctx); ok {
-		if err := client.metadataPolicy.Inject(
+		if err := c.metadataPolicy.Inject(
 			outbound,
 			httpHeaderCarrier(outboundRequest.Header),
 		); err != nil {
 			return nil, err
 		}
 	}
-	response, err := client.client.Do(outboundRequest)
+	response, err := c.httpClient.Do(outboundRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -319,19 +319,19 @@ func (client *Client) invoke(
 		_ = response.Body.Close()
 	}()
 
-	if headerSize(response.Header) > int64(client.maxHeaderBytes) {
+	if headerSize(response.Header) > int64(c.maxHeaderBytes) {
 		return nil, ErrHeaderTooLarge
 	}
 	if !call.Streaming {
-		if response.ContentLength > client.maxResponseBytes {
+		if response.ContentLength > c.maxResponseBytes {
 			return nil, ErrResponseTooLarge
 		}
 		response.Body = &limitedReadCloser{
 			reader:    response.Body,
-			remaining: client.maxResponseBytes,
+			remaining: c.maxResponseBytes,
 		}
 	}
-	inbound, err := client.metadataPolicy.Extract(httpHeaderCarrier(response.Header))
+	inbound, err := c.metadataPolicy.Extract(httpHeaderCarrier(response.Header))
 	if err != nil {
 		return nil, err
 	}
@@ -388,15 +388,15 @@ func isNilPicker(picker kclient.Picker) bool {
 // InvokeJSON decodes a successful JSON response as T.
 func InvokeJSON[T any](
 	ctx context.Context,
-	client *Client,
+	c *Client,
 	target operation.Operation,
 	request *nethttp.Request,
 ) (T, error) {
 	var zero T
-	if client == nil {
+	if c == nil {
 		return zero, fmt.Errorf("%w: client is nil", ErrInvalidCall)
 	}
-	response, err := client.Invoke(ctx, target, ClientCall{
+	response, err := c.Invoke(ctx, target, ClientCall{
 		Request: request,
 		Decode: func(_ context.Context, response *nethttp.Response) (any, error) {
 			var value T

@@ -44,9 +44,9 @@ type CompactRequest struct {
 }
 
 // Validate checks transport-neutral request bounds.
-func (request CompactRequest) Validate() error {
-	if request.Shard.Validate() != nil || request.Before.Validate() != nil ||
-		request.MaxEntries <= 0 || request.MaxEntries > maxCompactEntries {
+func (r CompactRequest) Validate() error {
+	if r.Shard.Validate() != nil || r.Before.Validate() != nil ||
+		r.MaxEntries <= 0 || r.MaxEntries > maxCompactEntries {
 		return ErrInvalidAdmin
 	}
 	return nil

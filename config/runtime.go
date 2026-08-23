@@ -76,8 +76,8 @@ func (*Runtime) Name() string {
 }
 
 // Start establishes Source watchers and publishes a valid initial snapshot.
-func (runtime *Runtime) Start(ctx context.Context) error {
-	if runtime == nil {
+func (r *Runtime) Start(ctx context.Context) error {
+	if r == nil {
 		return fmt.Errorf("%w: runtime is nil", ErrInvalidOption)
 	}
 	if ctx == nil {
@@ -87,139 +87,139 @@ func (runtime *Runtime) Start(ctx context.Context) error {
 		return cause
 	}
 
-	runtime.mu.Lock()
-	if runtime.state != RuntimeStateNew {
-		runtime.mu.Unlock()
+	r.mu.Lock()
+	if r.state != RuntimeStateNew {
+		r.mu.Unlock()
 		return ErrRuntimeAlreadyStarted
 	}
 	watchContext, cancel := context.WithCancelCause(
 		context.WithoutCancel(ctx),
 	)
 	ready := make(chan error, 1)
-	runtime.state = RuntimeStateStarting
-	runtime.cancel = cancel
-	runtime.mu.Unlock()
+	r.state = RuntimeStateStarting
+	r.cancel = cancel
+	r.mu.Unlock()
 
-	go runtime.run(watchContext, ready)
+	go r.run(watchContext, ready)
 
 	select {
 	case err := <-ready:
 		if err != nil {
 			cancel(err)
-			<-runtime.done
+			<-r.done
 			return err
 		}
 	case <-ctx.Done():
 		cause := context.Cause(ctx)
 		cancel(cause)
-		<-runtime.done
+		<-r.done
 		return cause
 	}
 
-	runtime.mu.Lock()
-	if runtime.state == RuntimeStateStopped {
-		err := runtime.waitErr
-		runtime.mu.Unlock()
+	r.mu.Lock()
+	if r.state == RuntimeStateStopped {
+		err := r.waitErr
+		r.mu.Unlock()
 		if err == nil {
 			return ErrRuntimeExited
 		}
 		return err
 	}
-	runtime.state = RuntimeStateRunning
-	runtime.mu.Unlock()
+	r.state = RuntimeStateRunning
+	r.mu.Unlock()
 	return nil
 }
 
 // Stop cancels the Watch loop and waits for all Source watchers to close.
-func (runtime *Runtime) Stop(ctx context.Context) error {
-	if runtime == nil {
+func (r *Runtime) Stop(ctx context.Context) error {
+	if r == nil {
 		return nil
 	}
 	if ctx == nil {
 		return fmt.Errorf("%w: nil context", ErrInvalidOption)
 	}
-	runtime.mu.Lock()
-	switch runtime.state {
+	r.mu.Lock()
+	switch r.state {
 	case RuntimeStateNew:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return nil
 	case RuntimeStateStarting, RuntimeStateRunning:
-		runtime.state = RuntimeStateStopping
-		cancel := runtime.cancel
-		done := runtime.done
-		runtime.mu.Unlock()
+		r.state = RuntimeStateStopping
+		cancel := r.cancel
+		done := r.done
+		r.mu.Unlock()
 		cancel(errRuntimeStop)
-		return waitRuntime(ctx, done, runtime.waitError)
+		return waitRuntime(ctx, done, r.waitError)
 	case RuntimeStateStopping:
-		done := runtime.done
-		runtime.mu.Unlock()
-		return waitRuntime(ctx, done, runtime.waitError)
+		done := r.done
+		r.mu.Unlock()
+		return waitRuntime(ctx, done, r.waitError)
 	case RuntimeStateStopped:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return nil
 	default:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return nil
 	}
 }
 
 // Wait blocks until the Watch loop ends.
-func (runtime *Runtime) Wait() error {
-	if runtime == nil {
+func (r *Runtime) Wait() error {
+	if r == nil {
 		return ErrRuntimeNotStarted
 	}
-	runtime.mu.Lock()
-	if runtime.state == RuntimeStateNew {
-		runtime.mu.Unlock()
+	r.mu.Lock()
+	if r.state == RuntimeStateNew {
+		r.mu.Unlock()
 		return ErrRuntimeNotStarted
 	}
-	done := runtime.done
-	runtime.mu.Unlock()
+	done := r.done
+	r.mu.Unlock()
 	<-done
-	return runtime.waitError()
+	return r.waitError()
 }
 
 // Description returns a value-free lifecycle snapshot.
-func (runtime *Runtime) Description() RuntimeDescription {
-	if runtime == nil {
+func (r *Runtime) Description() RuntimeDescription {
+	if r == nil {
 		return RuntimeDescription{
 			State:  RuntimeStateStopped,
 			Failed: true,
 		}
 	}
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return RuntimeDescription{
-		State:   runtime.state,
-		Running: runtime.state == RuntimeStateRunning,
-		Failed:  runtime.state == RuntimeStateStopped && runtime.waitErr != nil,
+		State:   r.state,
+		Running: r.state == RuntimeStateRunning,
+		Failed:  r.state == RuntimeStateStopped && r.waitErr != nil,
 	}
 }
 
-func (runtime *Runtime) run(
+func (r *Runtime) run(
 	ctx context.Context,
 	ready chan<- error,
 ) {
-	err := runtime.manager.watch(ctx, ready)
-	runtime.mu.Lock()
-	stopping := runtime.state == RuntimeStateStopping
+	err := r.manager.watch(ctx, ready)
+	r.mu.Lock()
+	stopping := r.state == RuntimeStateStopping
 	if stopping && errors.Is(err, errRuntimeStop) {
 		err = nil
 	}
 	if err == nil && !stopping {
 		err = ErrRuntimeExited
 	}
-	runtime.waitErr = err
-	runtime.state = RuntimeStateStopped
-	runtime.cancel = nil
-	close(runtime.done)
-	runtime.mu.Unlock()
+	r.waitErr = err
+	r.state = RuntimeStateStopped
+	r.cancel = nil
+	close(r.done)
+	r.mu.Unlock()
 }
 
-func (runtime *Runtime) waitError() error {
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	return runtime.waitErr
+func (r *Runtime) waitError() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.waitErr
 }
 
 func waitRuntime(

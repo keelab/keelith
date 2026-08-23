@@ -40,8 +40,8 @@ type Option interface {
 
 type optionFunc func(*options) error
 
-func (function optionFunc) apply(options *options) error {
-	return function(options)
+func (f optionFunc) apply(options *options) error {
+	return f(options)
 }
 
 type options struct {

@@ -58,11 +58,11 @@ type Publisher interface {
 type PublisherFunc func(context.Context, Candidate) error
 
 // Publish invokes the adapted publisher.
-func (function PublisherFunc) Publish(
+func (fn PublisherFunc) Publish(
 	ctx context.Context,
 	candidate Candidate,
 ) error {
-	return function(ctx, candidate)
+	return fn(ctx, candidate)
 }
 
 type filePublisher struct {
@@ -151,8 +151,8 @@ type Signer interface {
 type SignerFunc func(context.Context, []byte) ([]byte, error)
 
 // Sign invokes the adapted signer.
-func (function SignerFunc) Sign(ctx context.Context, payload []byte) ([]byte, error) {
-	return function(ctx, payload)
+func (fn SignerFunc) Sign(ctx context.Context, payload []byte) ([]byte, error) {
+	return fn(ctx, payload)
 }
 
 type ed25519Signer struct{ privateKey ed25519.PrivateKey }

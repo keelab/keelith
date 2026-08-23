@@ -78,7 +78,7 @@ func NewRequest(lastEventID string) (Request, error) {
 }
 
 // LastEventID returns the optional browser reconnection cursor.
-func (request Request) LastEventID() string { return request.lastEventID }
+func (r Request) LastEventID() string { return r.lastEventID }
 
 // NewEvent validates and snapshots one event.
 func NewEvent(spec EventSpec) (Event, error) {
@@ -305,14 +305,14 @@ func validName(value string) bool {
 	if len(value) > maxIdentityBytes {
 		return false
 	}
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= 'a' && character <= 'z',
-			character >= 'A' && character <= 'Z',
-			character >= '0' && character <= '9',
-			character == '.',
-			character == '_',
-			character == '-':
+		case r >= 'a' && r <= 'z',
+			r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9',
+			r == '.',
+			r == '_',
+			r == '-':
 		default:
 			return false
 		}

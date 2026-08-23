@@ -126,18 +126,18 @@ func NewMessage(id string, payload []byte, inbound metadata.Metadata) Message {
 }
 
 // ID returns the adapter-provided message identity.
-func (message Message) ID() string {
-	return message.id
+func (m Message) ID() string {
+	return m.id
 }
 
 // Payload returns a defensive copy of the delivery body.
-func (message Message) Payload() []byte {
-	return append([]byte(nil), message.payload...)
+func (m Message) Payload() []byte {
+	return append([]byte(nil), m.payload...)
 }
 
 // Metadata returns an immutable clone of inbound delivery metadata.
-func (message Message) Metadata() metadata.Metadata {
-	return message.metadata.Clone()
+func (m Message) Metadata() metadata.Metadata {
+	return m.metadata.Clone()
 }
 
 // ConsumerHandler maps one delivery to an explicit disposition.

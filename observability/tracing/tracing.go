@@ -227,10 +227,10 @@ func stableReason(reason string) bool {
 	if reason == "" || len(reason) > maxStableReasonBytes {
 		return false
 	}
-	for _, character := range reason {
-		if character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			character == '_' {
+	for _, r := range reason {
+		if r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '_' {
 			continue
 		}
 		return false

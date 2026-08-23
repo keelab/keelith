@@ -62,39 +62,39 @@ func NewWeightedRoundRobin(
 }
 
 // PreferenceTierCount reports the configured bounded preference depth.
-func (selector *WeightedRoundRobin) PreferenceTierCount() int {
-	if selector == nil {
+func (w *WeightedRoundRobin) PreferenceTierCount() int {
+	if w == nil {
 		return 0
 	}
-	return selector.settings.preferenceTierCount()
+	return w.settings.preferenceTierCount()
 }
 
 // Update replaces nodes while preserving smooth scheduling state.
-func (selector *WeightedRoundRobin) Update(snapshot registry.Snapshot) error {
-	nodes, err := nodesFromSnapshot(snapshot, selector.scheme)
+func (w *WeightedRoundRobin) Update(snapshot registry.Snapshot) error {
+	nodes, err := nodesFromSnapshot(snapshot, w.scheme)
 	if err != nil {
 		return err
 	}
 
 	weights := make(map[string]int64, len(nodes))
 	for _, node := range nodes {
-		weight, parseErr := nodeWeight(node, selector.weightKey)
+		weight, parseErr := nodeWeight(node, w.weightKey)
 		if parseErr != nil {
 			return parseErr
 		}
 		weights[node.key()] = weight
 	}
 
-	selector.mu.Lock()
-	defer selector.mu.Unlock()
-	if selector.service == snapshot.Service() &&
-		selector.revision == snapshot.Revision() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.service == snapshot.Service() &&
+		w.revision == snapshot.Revision() {
 		return nil
 	}
 	next := make(map[string]*weightedState, len(nodes))
 	for _, node := range nodes {
 		key := node.key()
-		state := selector.nodes[key]
+		state := w.nodes[key]
 		if state == nil {
 			state = &weightedState{}
 		}
@@ -102,24 +102,24 @@ func (selector *WeightedRoundRobin) Update(snapshot registry.Snapshot) error {
 		state.weight = weights[key]
 		next[key] = state
 	}
-	selector.service = snapshot.Service()
-	selector.revision = snapshot.Revision()
-	selector.nodes = next
+	w.service = snapshot.Service()
+	w.revision = snapshot.Revision()
+	w.nodes = next
 	return nil
 }
 
 // Select returns a node according to its advertised relative capacity.
-func (selector *WeightedRoundRobin) Select(
+func (w *WeightedRoundRobin) Select(
 	ctx context.Context,
 	operationID operation.Operation,
 ) (Node, Done, error) {
-	selector.mu.Lock()
-	service := selector.service
-	nodes := make([]Node, 0, len(selector.nodes))
-	for _, state := range selector.nodes {
+	w.mu.Lock()
+	service := w.service
+	nodes := make([]Node, 0, len(w.nodes))
+	for _, state := range w.nodes {
 		nodes = append(nodes, state.node)
 	}
-	selector.mu.Unlock()
+	w.mu.Unlock()
 	sort.Slice(nodes, func(first, second int) bool {
 		return nodes[first].key() < nodes[second].key()
 	})
@@ -127,16 +127,16 @@ func (selector *WeightedRoundRobin) Select(
 	if service != "" && operationID.Service() != service {
 		return Node{}, nil, ErrServiceMismatch
 	}
-	eligible, err := eligibleNodes(ctx, operationID, nodes, selector.settings)
+	eligible, err := eligibleNodes(ctx, operationID, nodes, w.settings)
 	if err != nil {
 		return Node{}, nil, err
 	}
 
-	selector.mu.Lock()
+	w.mu.Lock()
 	var chosen *weightedState
 	var total int64
 	for _, node := range eligible {
-		state := selector.nodes[node.key()]
+		state := w.nodes[node.key()]
 		if state == nil {
 			continue
 		}
@@ -149,15 +149,15 @@ func (selector *WeightedRoundRobin) Select(
 		}
 	}
 	if chosen == nil {
-		selector.mu.Unlock()
+		w.mu.Unlock()
 		return Node{}, nil, ErrNoNodes
 	}
 	chosen.current -= total
 	node := chosen.node
-	selector.mu.Unlock()
+	w.mu.Unlock()
 
 	return node, idempotentDone(func(result Result) {
-		observeResult(selector.settings, operationID, node, result)
+		observeResult(w.settings, operationID, node, result)
 	}), nil
 }
 

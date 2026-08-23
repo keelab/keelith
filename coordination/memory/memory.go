@@ -97,31 +97,31 @@ type lease struct {
 	release sync.Once
 }
 
-func (lease *lease) Fence() uint64 {
-	if lease == nil {
+func (l *lease) Fence() uint64 {
+	if l == nil {
 		return 0
 	}
-	return lease.fence
+	return l.fence
 }
 
-func (lease *lease) Done() <-chan struct{} {
-	if lease == nil {
+func (l *lease) Done() <-chan struct{} {
+	if l == nil {
 		return closed()
 	}
-	return lease.done
+	return l.done
 }
 
-func (lease *lease) Err() error {
-	if lease == nil {
+func (l *lease) Err() error {
+	if l == nil {
 		return coordination.ErrLeaseLost
 	}
-	lease.mu.Lock()
-	defer lease.mu.Unlock()
-	return lease.err
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.err
 }
 
-func (lease *lease) Release(ctx context.Context) error {
-	if lease == nil {
+func (l *lease) Release(ctx context.Context) error {
+	if l == nil {
 		return nil
 	}
 	if ctx == nil {
@@ -130,25 +130,25 @@ func (lease *lease) Release(ctx context.Context) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	lease.release.Do(func() {
-		lease.coordinator.mu.Lock()
-		if lease.coordinator.leases[lease.key] == lease {
-			delete(lease.coordinator.leases, lease.key)
-			lease.coordinator.released++
+	l.release.Do(func() {
+		l.coordinator.mu.Lock()
+		if l.coordinator.leases[l.key] == l {
+			delete(l.coordinator.leases, l.key)
+			l.coordinator.released++
 		}
-		lease.coordinator.mu.Unlock()
-		close(lease.done)
+		l.coordinator.mu.Unlock()
+		close(l.done)
 	})
 
-	return lease.Err()
+	return l.Err()
 }
 
 func validKey(value string) bool {
 	if value == "" || len(value) > 512 || strings.TrimSpace(value) != value || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

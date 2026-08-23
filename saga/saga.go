@@ -193,8 +193,8 @@ func validIdentity(value string, maximum int) bool {
 		!utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

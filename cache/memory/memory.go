@@ -14,12 +14,11 @@ var _ cache.VersionedBackend = (*Store)(nil)
 
 // Clock supplies deterministic expiration time.
 type Clock interface {
-	// Now returns the current time.
 	Now() time.Time
 }
 
 type entry struct {
-	value     []byte // value is a defensive copy of the cached value.
+	value     []byte
 	expiresAt time.Time
 }
 
@@ -28,8 +27,8 @@ type Store struct {
 	clock Clock
 
 	mu       sync.Mutex
-	entries  map[string]entry  // entries is the map of cached values.
-	versions map[string]uint64 // versions is the map of version numbers.
+	entries  map[string]entry
+	versions map[string]uint64
 }
 
 // New creates an in-memory backend using the system clock.
@@ -50,53 +49,53 @@ func NewWithClock(clock Clock) *Store {
 }
 
 // Get returns a defensive value copy or cache.ErrMiss.
-func (store *Store) Get(ctx context.Context, key string) ([]byte, error) {
+func (s *Store) Get(ctx context.Context, key string) ([]byte, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
-	now := store.clock.Now()
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	entry, ok := store.entries[key]
+	now := s.clock.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.entries[key]
 	if !ok {
 		return nil, cache.ErrMiss
 	}
 	if !entry.expiresAt.IsZero() && !now.Before(entry.expiresAt) {
-		delete(store.entries, key)
+		delete(s.entries, key)
 		return nil, cache.ErrMiss
 	}
 	return append([]byte(nil), entry.value...), nil
 }
 
 // Set stores a defensive copy. A zero TTL means no expiration.
-func (store *Store) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+func (s *Store) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
 	expiresAt := time.Time{}
 	if ttl > 0 {
-		expiresAt = store.clock.Now().Add(ttl)
+		expiresAt = s.clock.Now().Add(ttl)
 	}
-	store.mu.Lock()
-	store.entries[key] = entry{
+	s.mu.Lock()
+	s.entries[key] = entry{
 		value:     append([]byte(nil), value...),
 		expiresAt: expiresAt,
 	}
-	store.mu.Unlock()
+	s.mu.Unlock()
 	return nil
 }
 
 // Delete removes keys and reports how many existed.
-func (store *Store) Delete(ctx context.Context, keys ...string) (int64, error) {
+func (s *Store) Delete(ctx context.Context, keys ...string) (int64, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var deleted int64
 	for _, key := range keys {
-		if _, ok := store.entries[key]; ok {
-			delete(store.entries, key)
+		if _, ok := s.entries[key]; ok {
+			delete(s.entries, key)
 			deleted++
 		}
 	}
@@ -104,30 +103,30 @@ func (store *Store) Delete(ctx context.Context, keys ...string) (int64, error) {
 }
 
 // CurrentVersion returns the in-process invalidation watermark for key.
-func (store *Store) CurrentVersion(ctx context.Context, key string) (uint64, error) {
+func (s *Store) CurrentVersion(ctx context.Context, key string) (uint64, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	return store.versions[key], nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.versions[key], nil
 }
 
 // SetIfVersion stores only while the invalidation watermark is unchanged.
-func (store *Store) SetIfVersion(ctx context.Context, key string, value []byte, ttl time.Duration, expected uint64) (bool, error) {
+func (s *Store) SetIfVersion(ctx context.Context, key string, value []byte, ttl time.Duration, expected uint64) (bool, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return false, cause
 	}
 	expiresAt := time.Time{}
 	if ttl > 0 {
-		expiresAt = store.clock.Now().Add(ttl)
+		expiresAt = s.clock.Now().Add(ttl)
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if store.versions[key] != expected {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.versions[key] != expected {
 		return false, nil
 	}
-	store.entries[key] = entry{
+	s.entries[key] = entry{
 		value:     append([]byte(nil), value...),
 		expiresAt: expiresAt,
 	}
@@ -135,20 +134,20 @@ func (store *Store) SetIfVersion(ctx context.Context, key string, value []byte, 
 }
 
 // ApplyInvalidation advances a key watermark and atomically deletes its value.
-func (store *Store) ApplyInvalidation(ctx context.Context, key string, version uint64) (cache.InvalidationState, error) {
+func (s *Store) ApplyInvalidation(ctx context.Context, key string, version uint64) (cache.InvalidationState, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
 	if version == 0 {
 		return 0, fmt.Errorf("%w: version is zero", cache.ErrInvalidOption)
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	current := store.versions[key]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.versions[key]
 	switch {
 	case version > current:
-		store.versions[key] = version
-		delete(store.entries, key)
+		s.versions[key] = version
+		delete(s.entries, key)
 		return cache.InvalidationApplied, nil
 	case version == current:
 		return cache.InvalidationCurrent, nil

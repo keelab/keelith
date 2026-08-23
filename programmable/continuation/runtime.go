@@ -133,39 +133,39 @@ func NewRuntime(config RuntimeConfig) (*Runtime, error) {
 }
 
 // Create stores one new accepted call.
-func (runtime *Runtime) Create(
+func (r *Runtime) Create(
 	ctx context.Context,
 	callID CallID,
 	operation Operation,
 ) (Snapshot, error) {
-	if runtime == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return Snapshot{}, ErrInvalidRuntime
 	}
 	snapshot, err := NewSnapshot(callID, operation)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	if _, exists := runtime.registry.Resolve(operation); !exists {
+	if _, exists := r.registry.Resolve(operation); !exists {
 		return Snapshot{}, ErrMachineNotFound
 	}
-	return runtime.store.Create(ctx, snapshot)
+	return r.store.Create(ctx, snapshot)
 }
 
 // SubmitSignal atomically wakes one waiting call.
-func (runtime *Runtime) SubmitSignal(
+func (r *Runtime) SubmitSignal(
 	ctx context.Context,
 	callID CallID,
 	commandID string,
 	payload []byte,
 ) (Snapshot, error) {
-	if runtime == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return Snapshot{}, ErrInvalidRuntime
 	}
-	current, err := runtime.store.Load(ctx, callID)
+	current, err := r.store.Load(ctx, callID)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	return runtime.store.SubmitSignal(ctx, CommandRequest{
+	return r.store.SubmitSignal(ctx, CommandRequest{
 		CallID:           callID,
 		ExpectedRevision: current.Revision(),
 		CommandID:        commandID,
@@ -174,19 +174,19 @@ func (runtime *Runtime) SubmitSignal(
 }
 
 // RequestCancel atomically requests cooperative cancellation.
-func (runtime *Runtime) RequestCancel(
+func (r *Runtime) RequestCancel(
 	ctx context.Context,
 	callID CallID,
 	commandID string,
 ) (Snapshot, error) {
-	if runtime == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return Snapshot{}, ErrInvalidRuntime
 	}
-	current, err := runtime.store.Load(ctx, callID)
+	current, err := r.store.Load(ctx, callID)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	return runtime.store.RequestCancel(ctx, CommandRequest{
+	return r.store.RequestCancel(ctx, CommandRequest{
 		CallID:           callID,
 		ExpectedRevision: current.Revision(),
 		CommandID:        commandID,
@@ -198,14 +198,14 @@ func (runtime *Runtime) RequestCancel(
 // A Machine can execute successfully while its Store commit fails. Another
 // executor will then run the same revision again. This is intentionally
 // at-least-once and does not make application side effects exactly-once.
-func (runtime *Runtime) RunOnce(ctx context.Context) (int, error) {
-	if runtime == nil || ctx == nil {
+func (r *Runtime) RunOnce(ctx context.Context) (int, error) {
+	if r == nil || ctx == nil {
 		return 0, ErrInvalidRuntime
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
-	ready, err := runtime.store.ListReady(ctx, runtime.batchSize)
+	ready, err := r.store.ListReady(ctx, r.batchSize)
 	if err != nil {
 		return 0, err
 	}
@@ -217,11 +217,11 @@ func (runtime *Runtime) RunOnce(ctx context.Context) (int, error) {
 		if cause := context.Cause(ctx); cause != nil {
 			return processed, cause
 		}
-		claim, acquireErr := runtime.leases.Claim(ctx, ClaimRequest{
+		claim, acquireErr := r.leases.Claim(ctx, ClaimRequest{
 			CallID:           candidate.CallID(),
 			ExpectedRevision: candidate.Revision(),
-			OwnerID:          runtime.executorID,
-			LeaseDuration:    runtime.leaseDuration,
+			OwnerID:          r.executorID,
+			LeaseDuration:    r.leaseDuration,
 		})
 		if errors.Is(acquireErr, ErrConflict) ||
 			errors.Is(acquireErr, ErrNotReady) ||
@@ -232,37 +232,37 @@ func (runtime *Runtime) RunOnce(ctx context.Context) (int, error) {
 			return processed, acquireErr
 		}
 		processed++
-		runtime.observe(ctx, Event{
+		r.observe(ctx, Event{
 			Kind:   EventClaim,
 			Status: claim.Snapshot.Status(),
 		})
-		machine, exists := runtime.registry.Resolve(claim.Snapshot.Operation())
+		machine, exists := r.registry.Resolve(claim.Snapshot.Operation())
 		if !exists {
-			runtime.release(ctx, claim.Snapshot)
+			r.release(ctx, claim.Snapshot)
 			return processed, ErrMachineNotFound
 		}
 		current := claim.Snapshot
-		for step := 0; step < runtime.maxTransitions; step++ {
-			transition, advanceErr := runtime.advance(ctx, machine, current)
+		for step := 0; step < r.maxTransitions; step++ {
+			transition, advanceErr := r.advance(ctx, machine, current)
 			if advanceErr != nil {
 				if cause := context.Cause(ctx); cause != nil {
-					runtime.release(ctx, current)
+					r.release(ctx, current)
 					return processed, cause
 				}
 				_, handled, handleErr :=
-					runtime.commitMachineError(
+					r.commitMachineError(
 						ctx,
 						current,
 						advanceErr,
 					)
 				if handled {
 					if handleErr != nil {
-						runtime.release(ctx, current)
+						r.release(ctx, current)
 						return processed, handleErr
 					}
 					break
 				}
-				runtime.release(ctx, current)
+				r.release(ctx, current)
 				return processed, fmt.Errorf(
 					"continuation: advance machine: %w",
 					advanceErr,
@@ -270,27 +270,27 @@ func (runtime *Runtime) RunOnce(ctx context.Context) (int, error) {
 			}
 			next, applyErr := Apply(current, transition)
 			if applyErr != nil {
-				runtime.release(ctx, current)
+				r.release(ctx, current)
 				return processed, applyErr
 			}
-			next, commitErr := runtime.store.Transition(
+			next, commitErr := r.store.Transition(
 				ctx,
-				runtime.commitRequest(current, next),
+				r.commitRequest(current, next),
 			)
 			if commitErr != nil {
-				runtime.release(ctx, current)
+				r.release(ctx, current)
 				return processed, commitErr
 			}
 			current = next
-			runtime.observe(ctx, Event{
+			r.observe(ctx, Event{
 				Kind:   EventTransition,
 				Status: current.Status(),
 			})
 			if current.Status() != StatusRunning {
 				break
 			}
-			if step == runtime.maxTransitions-1 {
-				runtime.release(ctx, current)
+			if step == r.maxTransitions-1 {
+				r.release(ctx, current)
 				return processed, ErrTransitionBudget
 			}
 		}
@@ -298,7 +298,7 @@ func (runtime *Runtime) RunOnce(ctx context.Context) (int, error) {
 	return processed, nil
 }
 
-func (runtime *Runtime) advance(
+func (r *Runtime) advance(
 	ctx context.Context,
 	machine Machine,
 	current Snapshot,
@@ -308,7 +308,7 @@ func (runtime *Runtime) advance(
 	done := make(chan struct{})
 	heartbeatResult := make(chan error, 1)
 	go func() {
-		timer := time.NewTicker(runtime.heartbeat)
+		timer := time.NewTicker(r.heartbeat)
 		defer timer.Stop()
 		for {
 			select {
@@ -319,18 +319,18 @@ func (runtime *Runtime) advance(
 				heartbeatResult <- context.Cause(advanceCtx)
 				return
 			case <-timer.C:
-				_, err := runtime.leases.Renew(
+				_, err := r.leases.Renew(
 					advanceCtx,
 					LeaseRequest{
 						CallID:        current.CallID(),
 						Revision:      current.Revision(),
 						Fence:         current.Fence(),
-						OwnerID:       runtime.executorID,
-						LeaseDuration: runtime.leaseDuration,
+						OwnerID:       r.executorID,
+						LeaseDuration: r.leaseDuration,
 					},
 				)
 				if err != nil {
-					runtime.observe(advanceCtx, Event{
+					r.observe(advanceCtx, Event{
 						Kind:       EventRenew,
 						Status:     current.Status(),
 						ErrorClass: ErrorClassInternal,
@@ -339,7 +339,7 @@ func (runtime *Runtime) advance(
 					heartbeatResult <- err
 					return
 				}
-				runtime.observe(advanceCtx, Event{
+				r.observe(advanceCtx, Event{
 					Kind:   EventRenew,
 					Status: current.Status(),
 				})
@@ -355,31 +355,31 @@ func (runtime *Runtime) advance(
 	return transition, err
 }
 
-func (runtime *Runtime) release(ctx context.Context, snapshot Snapshot) {
-	if runtime == nil || runtime.leases == nil {
+func (r *Runtime) release(ctx context.Context, snapshot Snapshot) {
+	if r == nil || r.leases == nil {
 		return
 	}
-	_ = runtime.leases.Release(ctx, LeaseRequest{
+	_ = r.leases.Release(ctx, LeaseRequest{
 		CallID:   snapshot.CallID(),
 		Revision: snapshot.Revision(),
 		Fence:    snapshot.Fence(),
-		OwnerID:  runtime.executorID,
+		OwnerID:  r.executorID,
 	})
 }
 
 // Run polls and advances ready calls until ctx ends or a runtime error occurs.
-func (runtime *Runtime) Run(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (r *Runtime) Run(ctx context.Context) error {
+	if r == nil || ctx == nil {
 		return ErrInvalidRuntime
 	}
 	for {
 		if cause := context.Cause(ctx); cause != nil {
 			return cause
 		}
-		if _, err := runtime.RunOnce(ctx); err != nil {
+		if _, err := r.RunOnce(ctx); err != nil {
 			return err
 		}
-		timer := time.NewTimer(runtime.pollInterval)
+		timer := time.NewTimer(r.pollInterval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()

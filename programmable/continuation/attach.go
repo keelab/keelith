@@ -85,40 +85,40 @@ type Attachment struct {
 }
 
 // StartCall persists one new call together with its immutable input frame.
-func (runtime *Runtime) StartCall(
+func (r *Runtime) StartCall(
 	ctx context.Context,
 	callID CallID,
 	operation Operation,
 	input []byte,
 ) (Snapshot, error) {
-	if runtime == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return Snapshot{}, ErrInvalidRuntime
 	}
-	if _, exists := runtime.registry.Resolve(operation); !exists {
+	if _, exists := r.registry.Resolve(operation); !exists {
 		return Snapshot{}, ErrMachineNotFound
 	}
 	snapshot, err := NewSnapshotWithInput(callID, operation, input)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	return runtime.store.Create(ctx, snapshot)
+	return r.store.Create(ctx, snapshot)
 }
 
 // Attach returns one bounded, deep-copied page after an exclusive frame cursor.
-func (runtime *Runtime) Attach(
+func (r *Runtime) Attach(
 	ctx context.Context,
 	callID CallID,
 	after uint64,
 	limit int,
 ) (Attachment, error) {
-	if runtime == nil ||
+	if r == nil ||
 		ctx == nil ||
 		!validIdentity(callID.value) ||
 		limit < 1 ||
 		limit > maxAttachFrames {
 		return Attachment{}, ErrInvalidAttach
 	}
-	current, err := runtime.store.Load(ctx, callID)
+	current, err := r.store.Load(ctx, callID)
 	if err != nil {
 		return Attachment{}, err
 	}
@@ -126,7 +126,7 @@ func (runtime *Runtime) Attach(
 		return Attachment{}, ErrInvalidAttach
 	}
 	if current.sequence > after {
-		runtime.observe(ctx, Event{
+		r.observe(ctx, Event{
 			Kind:   EventAttachLag,
 			Status: current.status,
 			Count:  current.sequence - after,
@@ -139,7 +139,7 @@ func (runtime *Runtime) Attach(
 		}
 	}
 	if after < current.frameFloor-1 {
-		runtime.observe(ctx, Event{
+		r.observe(ctx, Event{
 			Kind:  EventGap,
 			Count: current.frameFloor - after - 1,
 		})

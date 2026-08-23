@@ -35,11 +35,11 @@ type Machine interface {
 type MachineFunc func(context.Context, Snapshot) (Transition, error)
 
 // Advance implements Machine.
-func (function MachineFunc) Advance(
+func (fn MachineFunc) Advance(
 	ctx context.Context,
 	snapshot Snapshot,
 ) (Transition, error) {
-	return function(ctx, snapshot)
+	return fn(ctx, snapshot)
 }
 
 // Registry owns the immutable Operation-to-Machine mapping.

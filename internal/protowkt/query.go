@@ -151,8 +151,8 @@ func validInteger(value string) bool {
 			return false
 		}
 	}
-	for _, character := range value {
-		if character < '0' || character > '9' {
+	for _, r := range value {
+		if r < '0' || r > '9' {
 			return false
 		}
 	}

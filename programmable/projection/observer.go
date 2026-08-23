@@ -62,11 +62,11 @@ type Observer interface {
 type ObserverFunc func(context.Context, Event)
 
 // ObserveProjection calls function.
-func (function ObserverFunc) ObserveProjection(
+func (fn ObserverFunc) ObserveProjection(
 	ctx context.Context,
 	event Event,
 ) {
-	function(ctx, event)
+	fn(ctx, event)
 }
 
 func observeProjection(

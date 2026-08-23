@@ -58,28 +58,28 @@ type UpdateSubscription struct {
 }
 
 // Baseline returns the generation active when the subscription was created.
-func (subscription *UpdateSubscription) Baseline() uint64 {
-	if subscription == nil {
+func (sub *UpdateSubscription) Baseline() uint64 {
+	if sub == nil {
 		return 0
 	}
-	return subscription.baseline
+	return sub.baseline
 }
 
 // Updates returns a single-slot stream of successful material generations.
-func (subscription *UpdateSubscription) Updates() <-chan uint64 {
-	if subscription == nil {
+func (sub *UpdateSubscription) Updates() <-chan uint64 {
+	if sub == nil {
 		return nil
 	}
-	return subscription.updates
+	return sub.updates
 }
 
 // Close unregisters the subscription. It is safe to call repeatedly.
-func (subscription *UpdateSubscription) Close() {
-	if subscription == nil || subscription.reloader == nil {
+func (sub *UpdateSubscription) Close() {
+	if sub == nil || sub.reloader == nil {
 		return
 	}
-	subscription.closeOnce.Do(func() {
-		subscription.reloader.removeSubscriber(subscription.id)
+	sub.closeOnce.Do(func() {
+		sub.reloader.removeSubscriber(sub.id)
 	})
 }
 

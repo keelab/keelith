@@ -36,8 +36,8 @@ type Option interface {
 
 type optionFunc func(*options) error
 
-func (function optionFunc) apply(options *options) error {
-	return function(options)
+func (f optionFunc) apply(options *options) error {
+	return f(options)
 }
 
 type options struct {
@@ -133,7 +133,7 @@ func New(prefix string, optionList ...Option) (*Source, error) {
 }
 
 // Load captures a complete deterministic snapshot of selected variables.
-func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
+func (s *Source) Load(ctx context.Context) (config.Snapshot, error) {
 	if ctx == nil {
 		return config.Snapshot{}, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
@@ -145,9 +145,9 @@ func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
 		value string
 	}
 	entries := make([]entry, 0)
-	for _, raw := range source.environ() {
+	for _, raw := range s.environ() {
 		key, value, found := strings.Cut(raw, "=")
-		if !found || !strings.HasPrefix(key, source.prefix) {
+		if !found || !strings.HasPrefix(key, s.prefix) {
 			continue
 		}
 		entries = append(entries, entry{key: key, value: value})
@@ -160,7 +160,7 @@ func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
 	seen := make(map[string]string, len(entries))
 	hasher := sha256.New()
 	for _, entry := range entries {
-		path, err := source.path(entry.key)
+		path, err := s.path(entry.key)
 		if err != nil {
 			return config.Snapshot{}, err
 		}
@@ -175,7 +175,7 @@ func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
 			}
 		}
 		seen[normalized] = entry.key
-		parsed, err := source.parser(append([]string(nil), path...), entry.value)
+		parsed, err := s.parser(append([]string(nil), path...), entry.value)
 		if err != nil {
 			return config.Snapshot{}, fmt.Errorf(
 				"config/env: parse %s: %w",
@@ -194,28 +194,28 @@ func (source *Source) Load(ctx context.Context) (config.Snapshot, error) {
 }
 
 // Watch polls the selected environment snapshot and emits revisions.
-func (source *Source) Watch(ctx context.Context) (config.Watcher, error) {
+func (s *Source) Watch(ctx context.Context) (config.Watcher, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
-	initial, err := source.Load(ctx)
+	initial, err := s.Load(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &watcher{
-		source:       source,
+		source:       s,
 		lastRevision: initial.Revision(),
 		closed:       make(chan struct{}),
 	}, nil
 }
 
-func (source *Source) path(key string) ([]string, error) {
-	relative := strings.TrimPrefix(key, source.prefix)
+func (s *Source) path(key string) ([]string, error) {
+	relative := strings.TrimPrefix(key, s.prefix)
 	relative = strings.TrimPrefix(relative, "_")
 	if relative == "" {
 		return nil, fmt.Errorf("%w: %s has an empty path", ErrInvalidOption, key)
 	}
-	segments := strings.Split(relative, source.separator)
+	segments := strings.Split(relative, s.separator)
 	for index, segment := range segments {
 		segment = strings.ToLower(strings.TrimSpace(segment))
 		if segment == "" {
@@ -237,34 +237,34 @@ type watcher struct {
 	closeOnce    sync.Once
 }
 
-func (watcher *watcher) Next(ctx context.Context) (config.Snapshot, error) {
+func (w *watcher) Next(ctx context.Context) (config.Snapshot, error) {
 	if ctx == nil {
 		return config.Snapshot{}, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 	}
-	ticker := time.NewTicker(watcher.source.pollInterval)
+	ticker := time.NewTicker(w.source.pollInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return config.Snapshot{}, context.Cause(ctx)
-		case <-watcher.closed:
+		case <-w.closed:
 			return config.Snapshot{}, config.ErrWatcherClosed
 		case <-ticker.C:
-			snapshot, err := watcher.source.Load(ctx)
+			snapshot, err := w.source.Load(ctx)
 			if err != nil {
 				return config.Snapshot{}, err
 			}
-			if snapshot.Revision() == watcher.lastRevision {
+			if snapshot.Revision() == w.lastRevision {
 				continue
 			}
-			watcher.lastRevision = snapshot.Revision()
+			w.lastRevision = snapshot.Revision()
 			return snapshot, nil
 		}
 	}
 }
 
-func (watcher *watcher) Close() error {
-	watcher.closeOnce.Do(func() { close(watcher.closed) })
+func (w *watcher) Close() error {
+	w.closeOnce.Do(func() { close(w.closed) })
 	return nil
 }
 

@@ -52,41 +52,41 @@ func NewWithClock(clock func() time.Time) *Store {
 }
 
 // Create atomically inserts one initial accepted Snapshot.
-func (store *Store) Create(
+func (s *Store) Create(
 	ctx context.Context,
 	snapshot continuation.Snapshot,
 ) (continuation.Snapshot, error) {
-	if store == nil || ctx == nil || !initialSnapshot(snapshot) {
+	if s == nil || ctx == nil || !initialSnapshot(snapshot) {
 		return continuation.Snapshot{}, continuation.ErrInvalidStore
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key := snapshot.CallID().String()
-	if _, exists := store.records[key]; exists {
+	if _, exists := s.records[key]; exists {
 		return continuation.Snapshot{}, continuation.ErrAlreadyExists
 	}
-	store.ensureState()
-	store.records[key] = snapshot
+	s.ensureState()
+	s.records[key] = snapshot
 	return snapshot, nil
 }
 
 // Load returns one immutable Snapshot.
-func (store *Store) Load(
+func (s *Store) Load(
 	ctx context.Context,
 	callID continuation.CallID,
 ) (continuation.Snapshot, error) {
-	if store == nil || ctx == nil || callID.String() == "" {
+	if s == nil || ctx == nil || callID.String() == "" {
 		return continuation.Snapshot{}, continuation.ErrInvalidStore
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	snapshot, exists := store.records[callID.String()]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snapshot, exists := s.records[callID.String()]
 	if !exists {
 		return continuation.Snapshot{}, continuation.ErrNotFound
 	}
@@ -94,12 +94,12 @@ func (store *Store) Load(
 }
 
 // Acquire atomically moves a ready call under a strictly newer fence.
-func (store *Store) Acquire(
+func (s *Store) Acquire(
 	ctx context.Context,
 	callID continuation.CallID,
 	expectedRevision uint64,
 ) (continuation.Snapshot, error) {
-	if store == nil ||
+	if s == nil ||
 		ctx == nil ||
 		callID.String() == "" ||
 		expectedRevision == 0 {
@@ -108,21 +108,21 @@ func (store *Store) Acquire(
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	current, exists := store.records[callID.String()]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, exists := s.records[callID.String()]
 	if !exists {
 		return continuation.Snapshot{}, continuation.ErrNotFound
 	}
 	if current.Revision() != expectedRevision {
 		return continuation.Snapshot{}, continuation.ErrConflict
 	}
-	now := store.now().UTC()
-	if lease, claimed := store.leases[callID.String()]; claimed {
+	now := s.now().UTC()
+	if lease, claimed := s.leases[callID.String()]; claimed {
 		if lease.deadline.After(now) {
 			return continuation.Snapshot{}, continuation.ErrLeaseHeld
 		}
-		delete(store.leases, callID.String())
+		delete(s.leases, callID.String())
 	}
 	if !ready(current.Status()) {
 		return continuation.Snapshot{}, continuation.ErrNotReady
@@ -144,16 +144,16 @@ func (store *Store) Acquire(
 	if err != nil {
 		return continuation.Snapshot{}, err
 	}
-	store.records[callID.String()] = next
+	s.records[callID.String()] = next
 	return next, nil
 }
 
 // Transition atomically commits one direct Apply result.
-func (store *Store) Transition(
+func (s *Store) Transition(
 	ctx context.Context,
 	request continuation.CommitRequest,
 ) (continuation.Snapshot, error) {
-	if store == nil ||
+	if s == nil ||
 		ctx == nil ||
 		request.ExpectedRevision == 0 ||
 		request.Fence == 0 ||
@@ -165,23 +165,23 @@ func (store *Store) Transition(
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key := request.Snapshot.CallID().String()
-	current, exists := store.records[key]
+	current, exists := s.records[key]
 	if !exists {
 		return continuation.Snapshot{}, continuation.ErrNotFound
 	}
-	lease, claimed := store.leases[key]
+	lease, claimed := s.leases[key]
 	if request.LeaseOwner != "" {
 		if !claimed ||
 			lease.owner != request.LeaseOwner ||
 			lease.revision != request.ExpectedRevision ||
 			lease.fence != request.Fence ||
-			!lease.deadline.After(store.now().UTC()) {
+			!lease.deadline.After(s.now().UTC()) {
 			return continuation.Snapshot{}, continuation.ErrLeaseLost
 		}
-	} else if claimed && lease.deadline.After(store.now().UTC()) {
+	} else if claimed && lease.deadline.After(s.now().UTC()) {
 		return continuation.Snapshot{}, continuation.ErrLeaseLost
 	}
 	if request.Fence != current.Fence() {
@@ -193,42 +193,42 @@ func (store *Store) Transition(
 	if !validSuccessor(current, request.Snapshot, request.Fence) {
 		return continuation.Snapshot{}, continuation.ErrInvalidStore
 	}
-	store.records[key] = request.Snapshot
+	s.records[key] = request.Snapshot
 	if request.Snapshot.Status().Terminal() &&
 		!request.ExpiresAt.IsZero() {
-		store.expires[key] = request.ExpiresAt.UTC()
+		s.expires[key] = request.ExpiresAt.UTC()
 	} else {
-		delete(store.expires, key)
+		delete(s.expires, key)
 	}
 	if request.Snapshot.Status() == continuation.StatusRunning {
 		lease.revision = request.Snapshot.Revision()
 		lease.fence = request.Snapshot.Fence()
-		store.leases[key] = lease
+		s.leases[key] = lease
 	} else {
-		delete(store.leases, key)
+		delete(s.leases, key)
 	}
 	return request.Snapshot, nil
 }
 
 // ListReady returns a stable bounded snapshot of executable calls.
-func (store *Store) ListReady(
+func (s *Store) ListReady(
 	ctx context.Context,
 	limit int,
 ) ([]continuation.Snapshot, error) {
-	if store == nil || ctx == nil || limit <= 0 || limit > 10_000 {
+	if s == nil || ctx == nil || limit <= 0 || limit > 10_000 {
 		return nil, continuation.ErrInvalidStore
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	keys := make([]string, 0, len(store.records))
-	now := store.now().UTC()
-	for key, snapshot := range store.records {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keys := make([]string, 0, len(s.records))
+	now := s.now().UTC()
+	for key, snapshot := range s.records {
 		if ready(snapshot.Status()) &&
 			snapshot.TimerDue(now) &&
-			!store.leaseActive(key, now) {
+			!s.leaseActive(key, now) {
 			keys = append(keys, key)
 		}
 	}
@@ -238,13 +238,13 @@ func (store *Store) ListReady(
 	}
 	result := make([]continuation.Snapshot, len(keys))
 	for index, key := range keys {
-		result[index] = store.records[key]
+		result[index] = s.records[key]
 	}
 	return result, nil
 }
 
 // SubmitSignal atomically accepts one idempotent Signal command.
-func (store *Store) SubmitSignal(
+func (s *Store) SubmitSignal(
 	ctx context.Context,
 	request continuation.CommandRequest,
 ) (continuation.Snapshot, error) {
@@ -255,7 +255,7 @@ func (store *Store) SubmitSignal(
 	if err != nil {
 		return continuation.Snapshot{}, err
 	}
-	return store.command(
+	return s.command(
 		ctx,
 		request,
 		continuation.Signal(request.CommandID, frame),
@@ -263,7 +263,7 @@ func (store *Store) SubmitSignal(
 }
 
 // RequestCancel atomically records one cooperative cancellation request.
-func (store *Store) RequestCancel(
+func (s *Store) RequestCancel(
 	ctx context.Context,
 	request continuation.CommandRequest,
 ) (continuation.Snapshot, error) {
@@ -274,19 +274,19 @@ func (store *Store) RequestCancel(
 	if err != nil {
 		return continuation.Snapshot{}, err
 	}
-	return store.command(
+	return s.command(
 		ctx,
 		request,
 		continuation.Cancel(request.CommandID, frame),
 	)
 }
 
-func (store *Store) command(
+func (s *Store) command(
 	ctx context.Context,
 	request continuation.CommandRequest,
 	transition continuation.Transition,
 ) (continuation.Snapshot, error) {
-	if store == nil ||
+	if s == nil ||
 		ctx == nil ||
 		request.CallID.String() == "" ||
 		request.ExpectedRevision == 0 {
@@ -295,9 +295,9 @@ func (store *Store) command(
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	current, exists := store.records[request.CallID.String()]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, exists := s.records[request.CallID.String()]
 	if !exists {
 		return continuation.Snapshot{}, continuation.ErrNotFound
 	}
@@ -311,32 +311,32 @@ func (store *Store) command(
 	if request.ExpectedRevision != current.Revision() {
 		return continuation.Snapshot{}, continuation.ErrConflict
 	}
-	store.records[request.CallID.String()] = next
-	delete(store.leases, request.CallID.String())
+	s.records[request.CallID.String()] = next
+	delete(s.leases, request.CallID.String())
 	return next, nil
 }
 
 // Claim atomically owns one ready revision until its bounded deadline.
-func (store *Store) Claim(
+func (s *Store) Claim(
 	ctx context.Context,
 	request continuation.ClaimRequest,
 ) (continuation.Lease, error) {
-	if store == nil || ctx == nil || request.Validate() != nil {
+	if s == nil || ctx == nil || request.Validate() != nil {
 		return continuation.Lease{}, continuation.ErrInvalidStore
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Lease{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.ensureState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureState()
 	key := request.CallID.String()
-	current, exists := store.records[key]
+	current, exists := s.records[key]
 	if !exists {
 		return continuation.Lease{}, continuation.ErrNotFound
 	}
-	now := store.now().UTC()
-	if lease, claimed := store.leases[key]; claimed &&
+	now := s.now().UTC()
+	if lease, claimed := s.leases[key]; claimed &&
 		lease.deadline.After(now) {
 		if lease.owner == request.OwnerID &&
 			lease.previousRevision == request.ExpectedRevision {
@@ -372,8 +372,8 @@ func (store *Store) Claim(
 		return continuation.Lease{}, err
 	}
 	deadline := now.Add(request.LeaseDuration)
-	store.records[key] = next
-	store.leases[key] = leaseRecord{
+	s.records[key] = next
+	s.leases[key] = leaseRecord{
 		owner:            request.OwnerID,
 		deadline:         deadline,
 		revision:         next.Revision(),
@@ -388,25 +388,25 @@ func (store *Store) Claim(
 }
 
 // Renew extends a current, non-expired claim without changing its revision.
-func (store *Store) Renew(
+func (s *Store) Renew(
 	ctx context.Context,
 	request continuation.LeaseRequest,
 ) (continuation.Lease, error) {
-	if store == nil || ctx == nil || request.Validate(true) != nil {
+	if s == nil || ctx == nil || request.Validate(true) != nil {
 		return continuation.Lease{}, continuation.ErrInvalidStore
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Lease{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key := request.CallID.String()
-	current, exists := store.records[key]
+	current, exists := s.records[key]
 	if !exists {
 		return continuation.Lease{}, continuation.ErrNotFound
 	}
-	lease, claimed := store.leases[key]
-	now := store.now().UTC()
+	lease, claimed := s.leases[key]
+	now := s.now().UTC()
 	if !claimed ||
 		lease.owner != request.OwnerID ||
 		lease.revision != request.Revision ||
@@ -415,7 +415,7 @@ func (store *Store) Renew(
 		return continuation.Lease{}, continuation.ErrLeaseLost
 	}
 	lease.deadline = now.Add(request.LeaseDuration)
-	store.leases[key] = lease
+	s.leases[key] = lease
 	return continuation.Lease{
 		Snapshot: current,
 		OwnerID:  lease.owner,
@@ -424,50 +424,50 @@ func (store *Store) Renew(
 }
 
 // Release makes one uncommitted revision immediately reclaimable.
-func (store *Store) Release(
+func (s *Store) Release(
 	ctx context.Context,
 	request continuation.LeaseRequest,
 ) error {
-	if store == nil || ctx == nil || request.Validate(false) != nil {
+	if s == nil || ctx == nil || request.Validate(false) != nil {
 		return continuation.ErrInvalidStore
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key := request.CallID.String()
-	if _, exists := store.records[key]; !exists {
+	if _, exists := s.records[key]; !exists {
 		return continuation.ErrNotFound
 	}
-	lease, claimed := store.leases[key]
+	lease, claimed := s.leases[key]
 	if !claimed ||
 		lease.owner != request.OwnerID ||
 		lease.revision != request.Revision ||
 		lease.fence != request.Fence {
 		return continuation.ErrLeaseLost
 	}
-	delete(store.leases, key)
+	delete(s.leases, key)
 	return nil
 }
 
-func (store *Store) leaseActive(key string, now time.Time) bool {
-	lease, exists := store.leases[key]
+func (s *Store) leaseActive(key string, now time.Time) bool {
+	lease, exists := s.leases[key]
 	return exists && lease.deadline.After(now)
 }
 
-func (store *Store) ensureState() {
-	if store.records == nil {
-		store.records = make(map[string]continuation.Snapshot)
+func (s *Store) ensureState() {
+	if s.records == nil {
+		s.records = make(map[string]continuation.Snapshot)
 	}
-	if store.leases == nil {
-		store.leases = make(map[string]leaseRecord)
+	if s.leases == nil {
+		s.leases = make(map[string]leaseRecord)
 	}
-	if store.expires == nil {
-		store.expires = make(map[string]time.Time)
+	if s.expires == nil {
+		s.expires = make(map[string]time.Time)
 	}
-	if store.now == nil {
-		store.now = func() time.Time { return time.Now().UTC() }
+	if s.now == nil {
+		s.now = func() time.Time { return time.Now().UTC() }
 	}
 }
 

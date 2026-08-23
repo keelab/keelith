@@ -28,10 +28,10 @@ type SSEClientOption interface {
 
 type sseClientOptionFunc func(*sseClientOptions) error
 
-func (function sseClientOptionFunc) applySSEClient(
+func (f sseClientOptionFunc) applySSEClient(
 	options *sseClientOptions,
 ) error {
-	return function(options)
+	return f(options)
 }
 
 type sseClientOptions struct {
@@ -73,16 +73,16 @@ type SSEMessage[T any] struct {
 }
 
 // ID returns the current server reconnection cursor.
-func (message SSEMessage[T]) ID() string { return message.id }
+func (m SSEMessage[T]) ID() string { return m.id }
 
 // Name returns the optional event type.
-func (message SSEMessage[T]) Name() string { return message.name }
+func (m SSEMessage[T]) Name() string { return m.name }
 
 // Value returns the freshly decoded event value.
-func (message SSEMessage[T]) Value() T { return message.value }
+func (m SSEMessage[T]) Value() T { return m.value }
 
 // Retry returns the most recently declared reconnection delay.
-func (message SSEMessage[T]) Retry() time.Duration { return message.retry }
+func (m SSEMessage[T]) Retry() time.Duration { return m.retry }
 
 // SSEClientStream owns one HTTP response body and its parser goroutine.
 type SSEClientStream[T any] struct {
@@ -102,9 +102,9 @@ func (stream *SSEClientStream[T]) Recv() (SSEMessage[T], error) {
 		var zero SSEMessage[T]
 		return zero, ErrInvalidSSE
 	}
-	message, open := <-stream.messages
+	m, open := <-stream.messages
 	if open {
-		return message, nil
+		return m, nil
 	}
 	var zero SSEMessage[T]
 	err := stream.terminalError()
@@ -336,13 +336,13 @@ func consumeProtoSSE[T proto.Message](
 			return nil
 		}
 		payload := strings.TrimSuffix(data.String(), "\n")
-		message := factory()
-		if isNilProto(message) {
+		m := factory()
+		if isNilProto(m) {
 			return fmt.Errorf("%w: Proto factory returned nil", ErrInvalidSSE)
 		}
 		if err := UnmarshalProtoResponseBody(
 			[]byte(payload),
-			message,
+			m,
 			responseBody,
 		); err != nil {
 			return fmt.Errorf("%w: decode Proto event", ErrInvalidSSE)
@@ -350,7 +350,7 @@ func consumeProtoSSE[T proto.Message](
 		event := SSEMessage[T]{
 			id:    lastID,
 			name:  eventName,
-			value: message,
+			value: m,
 			retry: retry,
 		}
 		select {

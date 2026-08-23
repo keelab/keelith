@@ -85,26 +85,26 @@ func NewHandler(output io.Writer, config Config) (slog.Handler, *Controller, err
 		AddSource: config.AddSource,
 		Level:     &controller.level,
 	}
-	var handler slog.Handler
+	var h slog.Handler
 	switch format {
 	case FormatJSON:
-		handler = slog.NewJSONHandler(output, options)
+		h = slog.NewJSONHandler(output, options)
 	case FormatText:
-		handler = slog.NewTextHandler(output, options)
+		h = slog.NewTextHandler(output, options)
 	default:
 		return nil, nil, fmt.Errorf("%w: unsupported logging format %q", ErrInvalidOption, format)
 	}
-	return handler, controller, nil
+	return h, controller, nil
 }
 
 // Wrap places this Controller's level gate outside an arbitrary Handler tree.
 // Use it after fan-out composition so stdout and remote destinations share one
 // policy.
-func (controller *Controller) Wrap(handler slog.Handler) (slog.Handler, error) {
-	if controller == nil || nilHandler(handler) {
+func (controller *Controller) Wrap(h slog.Handler) (slog.Handler, error) {
+	if controller == nil || nilHandler(h) {
 		return nil, ErrInvalidOption
 	}
-	return &levelHandler{next: handler, controller: controller}, nil
+	return &levelHandler{next: h, controller: controller}, nil
 }
 
 // ParseLevel validates a stable, case-insensitive slog level name.
@@ -310,18 +310,18 @@ type levelHandler struct {
 	controller *Controller
 }
 
-func (handler *levelHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return level >= handler.controller.level.Level() && handler.next.Enabled(ctx, level)
+func (h *levelHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.controller.level.Level() && h.next.Enabled(ctx, level)
 }
-func (handler *levelHandler) Handle(ctx context.Context, record slog.Record) error {
-	if !handler.Enabled(ctx, record.Level) {
+func (h *levelHandler) Handle(ctx context.Context, record slog.Record) error {
+	if !h.Enabled(ctx, record.Level) {
 		return nil
 	}
-	return handler.next.Handle(ctx, record)
+	return h.next.Handle(ctx, record)
 }
-func (handler *levelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &levelHandler{next: handler.next.WithAttrs(attrs), controller: handler.controller}
+func (h *levelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &levelHandler{next: h.next.WithAttrs(attrs), controller: h.controller}
 }
-func (handler *levelHandler) WithGroup(name string) slog.Handler {
-	return &levelHandler{next: handler.next.WithGroup(name), controller: handler.controller}
+func (h *levelHandler) WithGroup(name string) slog.Handler {
+	return &levelHandler{next: h.next.WithGroup(name), controller: h.controller}
 }

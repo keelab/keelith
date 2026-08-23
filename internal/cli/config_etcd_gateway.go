@@ -694,8 +694,8 @@ func validEtcdHistoryKey(key string, prefix string) bool {
 	if !strings.HasPrefix(key, prefix) || len(key) != len(prefix)+20 {
 		return false
 	}
-	for _, character := range key[len(prefix):] {
-		if character < '0' || character > '9' {
+	for _, r := range key[len(prefix):] {
+		if r < '0' || r > '9' {
 			return false
 		}
 	}

@@ -45,8 +45,8 @@ type BindingOption interface {
 
 type bindingOptionFunc func(*bindingOptions) error
 
-func (function bindingOptionFunc) applyBinding(options *bindingOptions) error {
-	return function(options)
+func (f bindingOptionFunc) applyBinding(options *bindingOptions) error {
+	return f(options)
 }
 
 type bindingOptions struct {

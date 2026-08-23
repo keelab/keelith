@@ -80,12 +80,12 @@ func NewRuntimeCatalog() *RuntimeCatalog {
 }
 
 // Register adds one stable component identity and its status provider.
-func (catalog *RuntimeCatalog) Register(
+func (c *RuntimeCatalog) Register(
 	name string,
 	kind string,
 	provider RuntimeStatusProvider,
 ) error {
-	return catalog.RegisterAll(RuntimeStatusRegistration{
+	return c.RegisterAll(RuntimeStatusRegistration{
 		Name:     name,
 		Kind:     kind,
 		Provider: provider,
@@ -94,10 +94,10 @@ func (catalog *RuntimeCatalog) Register(
 
 // RegisterAll validates and installs a component-owned registration batch
 // atomically. A rejected batch leaves the catalog unchanged.
-func (catalog *RuntimeCatalog) RegisterAll(
+func (c *RuntimeCatalog) RegisterAll(
 	registrations ...RuntimeStatusRegistration,
 ) error {
-	if catalog == nil {
+	if c == nil {
 		return fmt.Errorf("%w: runtime catalog is nil", ErrInvalidOption)
 	}
 	normalized := make(
@@ -133,9 +133,9 @@ func (catalog *RuntimeCatalog) RegisterAll(
 		batchKeys[key] = struct{}{}
 		normalized[index] = registration
 	}
-	catalog.mu.Lock()
-	defer catalog.mu.Unlock()
-	if len(catalog.entries)+len(normalized) > maxRuntimeComponents {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.entries)+len(normalized) > maxRuntimeComponents {
 		return fmt.Errorf(
 			"%w: runtime component count exceeds %d",
 			ErrInvalidOption,
@@ -144,7 +144,7 @@ func (catalog *RuntimeCatalog) RegisterAll(
 	}
 	for _, registration := range normalized {
 		key := registration.Kind + "\x00" + registration.Name
-		if _, duplicate := catalog.entries[key]; duplicate {
+		if _, duplicate := c.entries[key]; duplicate {
 			return fmt.Errorf(
 				"%w: runtime component %s/%s is duplicated",
 				ErrInvalidOption,
@@ -155,7 +155,7 @@ func (catalog *RuntimeCatalog) RegisterAll(
 	}
 	for _, registration := range normalized {
 		key := registration.Kind + "\x00" + registration.Name
-		catalog.entries[key] = runtimeEntry{
+		c.entries[key] = runtimeEntry{
 			name:     registration.Name,
 			kind:     registration.Kind,
 			provider: registration.Provider,
@@ -166,10 +166,10 @@ func (catalog *RuntimeCatalog) RegisterAll(
 
 // Describe returns a deterministic snapshot. A failed, panicking, or invalid
 // provider is represented as unavailable without exposing its error.
-func (catalog *RuntimeCatalog) Describe(
+func (c *RuntimeCatalog) Describe(
 	ctx context.Context,
 ) (RuntimeDescription, error) {
-	if catalog == nil {
+	if c == nil {
 		return RuntimeDescription{}, fmt.Errorf(
 			"ops: runtime catalog is nil",
 		)
@@ -182,12 +182,12 @@ func (catalog *RuntimeCatalog) Describe(
 	if cause := context.Cause(ctx); cause != nil {
 		return RuntimeDescription{}, cause
 	}
-	catalog.mu.RLock()
-	entries := make([]runtimeEntry, 0, len(catalog.entries))
-	for _, entry := range catalog.entries {
+	c.mu.RLock()
+	entries := make([]runtimeEntry, 0, len(c.entries))
+	for _, entry := range c.entries {
 		entries = append(entries, entry)
 	}
-	catalog.mu.RUnlock()
+	c.mu.RUnlock()
 	sort.Slice(entries, func(first, second int) bool {
 		if entries[first].kind == entries[second].kind {
 			return entries[first].name < entries[second].name
@@ -348,16 +348,16 @@ func validRuntimeToken(value string) bool {
 		strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= 'a' && character <= 'z',
-			character >= 'A' && character <= 'Z',
-			character >= '0' && character <= '9',
-			character == '.',
-			character == '_',
-			character == '-',
-			character == '/',
-			character == ':':
+		case r >= 'a' && r <= 'z',
+			r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9',
+			r == '.',
+			r == '_',
+			r == '-',
+			r == '/',
+			r == ':':
 		default:
 			return false
 		}

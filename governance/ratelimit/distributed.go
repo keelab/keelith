@@ -381,8 +381,8 @@ func validateSubject(subject Subject) error {
 		subject.Cost <= 0 {
 		return fmt.Errorf("%w: key or cost is invalid", ErrInvalidSubject)
 	}
-	for _, character := range subject.Key {
-		if unicode.IsControl(character) {
+	for _, r := range subject.Key {
+		if unicode.IsControl(r) {
 			return fmt.Errorf("%w: key contains control characters", ErrInvalidSubject)
 		}
 	}
@@ -416,11 +416,11 @@ func boundedError(err error, limit int) string {
 	if err == nil {
 		return ""
 	}
-	value := strings.Map(func(character rune) rune {
-		if unicode.IsControl(character) {
+	value := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
 			return ' '
 		}
-		return character
+		return r
 	}, err.Error())
 	if len(value) <= limit {
 		return value

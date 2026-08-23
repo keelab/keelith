@@ -41,10 +41,10 @@ type ComponentOption[T any] interface {
 
 type componentOptionFunc[T any] func(*componentOptions[T]) error
 
-func (function componentOptionFunc[T]) applyComponent(
+func (fn componentOptionFunc[T]) applyComponent(
 	options *componentOptions[T],
 ) error {
-	return function(options)
+	return fn(options)
 }
 
 type componentOptions[T any] struct {
@@ -902,8 +902,8 @@ func validComponentName(value string) bool {
 		strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}
@@ -918,11 +918,11 @@ func validComponentPath(value string) bool {
 		if segment == "" {
 			return false
 		}
-		for _, character := range segment {
-			if !unicode.IsLetter(character) &&
-				!unicode.IsDigit(character) &&
-				character != '_' &&
-				character != '-' {
+		for _, r := range segment {
+			if !unicode.IsLetter(r) &&
+				!unicode.IsDigit(r) &&
+				r != '_' &&
+				r != '-' {
 				return false
 			}
 		}

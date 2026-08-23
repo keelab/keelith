@@ -10,12 +10,12 @@ type NegativeClassifier func(error) bool
 
 // Policy defines read-through and expiration behavior.
 type Policy struct {
-	TTL           time.Duration      // TTL is the time-to-live for cache entries.
-	NegativeTTL   time.Duration      // NegativeTTL is the time-to-live for negative cache entries.
-	JitterRatio   float64            // JitterRatio is the ratio of TTL jitter to apply.
-	FailOpen      bool               // FailOpen indicates whether to fail open on cache errors.
-	IsNegative    NegativeClassifier // IsNegative is the negative classifier function.
-	NegativeError error              // NegativeError is the error to return for negative cache entries.
+	TTL           time.Duration
+	NegativeTTL   time.Duration
+	JitterRatio   float64
+	FailOpen      bool
+	IsNegative    NegativeClassifier
+	NegativeError error
 }
 
 // DefaultPolicy returns a safe read-through baseline.

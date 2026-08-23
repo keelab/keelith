@@ -52,11 +52,11 @@ func NewTransport(
 }
 
 // RoundTrip injects the latest valid token and delegates one HTTPS attempt.
-func (transport *Transport) RoundTrip(
+func (t *Transport) RoundTrip(
 	request *http.Request,
 ) (*http.Response, error) {
-	if transport == nil || transport.base == nil ||
-		transport.credential == nil || request == nil || request.URL == nil {
+	if t == nil || t.base == nil ||
+		t.credential == nil || request == nil || request.URL == nil {
 		return nil, ErrInvalidOption
 	}
 	if !strings.EqualFold(request.URL.Scheme, "https") {
@@ -67,7 +67,7 @@ func (transport *Transport) RoundTrip(
 			return nil, ErrAuthorizationConflict
 		}
 	}
-	metadata, err := transport.credential.GetRequestMetadata(request.Context())
+	metadata, err := t.credential.GetRequestMetadata(request.Context())
 	if err != nil {
 		return nil, ErrCredentialUnavailable
 	}
@@ -77,15 +77,15 @@ func (transport *Transport) RoundTrip(
 	}
 	clone := request.Clone(request.Context())
 	clone.Header.Set("Authorization", authorization)
-	return transport.base.RoundTrip(clone)
+	return t.base.RoundTrip(clone)
 }
 
 // CloseIdleConnections releases idle connections owned by the base transport.
-func (transport *Transport) CloseIdleConnections() {
-	if transport == nil || transport.base == nil {
+func (t *Transport) CloseIdleConnections() {
+	if t == nil || t.base == nil {
 		return
 	}
-	if closer, ok := transport.base.(interface{ CloseIdleConnections() }); ok {
+	if closer, ok := t.base.(interface{ CloseIdleConnections() }); ok {
 		closer.CloseIdleConnections()
 	}
 }
@@ -108,8 +108,8 @@ func authorizationValue(metadata map[string]string) (string, error) {
 		strings.TrimSpace(strings.TrimPrefix(value, "Bearer ")) == "" {
 		return "", ErrCredentialUnavailable
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return "", ErrCredentialUnavailable
 		}
 	}
@@ -118,9 +118,9 @@ func authorizationValue(metadata map[string]string) (string, error) {
 
 var _ http.RoundTripper = (*Transport)(nil)
 
-func (transport *Transport) String() string {
-	if transport == nil {
+func (t *Transport) String() string {
+	if t == nil {
 		return "httpauth.Transport<nil>"
 	}
-	return fmt.Sprintf("httpauth.Transport<configured=%t>", transport.base != nil)
+	return fmt.Sprintf("httpauth.Transport<configured=%t>", t.base != nil)
 }

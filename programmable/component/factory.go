@@ -51,12 +51,12 @@ type providerCloser struct {
 // RegisterLocalFactory registers one typed local constructor before
 // activation.
 func RegisterLocalFactory[T any](
-	runtime *Runtime,
+	r *Runtime,
 	component topology.ComponentID,
 	factory Factory[T],
 ) error {
 	return registerTypedFactory(
-		runtime,
+		r,
 		component,
 		factory,
 		topology.BindingLocal,
@@ -66,12 +66,12 @@ func RegisterLocalFactory[T any](
 // RegisterRemoteFactory registers one typed remote constructor before
 // activation.
 func RegisterRemoteFactory[T any](
-	runtime *Runtime,
+	r *Runtime,
 	component topology.ComponentID,
 	factory Factory[T],
 ) error {
 	return registerTypedFactory(
-		runtime,
+		r,
 		component,
 		factory,
 		topology.BindingRemote,
@@ -79,7 +79,7 @@ func RegisterRemoteFactory[T any](
 }
 
 func registerTypedFactory[T any](
-	runtime *Runtime,
+	r *Runtime,
 	component topology.ComponentID,
 	factory Factory[T],
 	mode topology.BindingMode,
@@ -94,17 +94,17 @@ func registerTypedFactory[T any](
 		return provider, closeProvider, err
 	})
 	if mode == topology.BindingRemote {
-		return runtime.RegisterRemoteFactory(component, adapted)
+		return r.RegisterRemoteFactory(component, adapted)
 	}
-	return runtime.RegisterLocalFactory(component, adapted)
+	return r.RegisterLocalFactory(component, adapted)
 }
 
 // RegisterLocalFactory registers one type-erased local constructor.
-func (runtime *Runtime) RegisterLocalFactory(
+func (r *Runtime) RegisterLocalFactory(
 	component topology.ComponentID,
 	factory ProviderFactory,
 ) error {
-	return runtime.registerFactory(
+	return r.registerFactory(
 		component,
 		factory,
 		topology.BindingLocal,
@@ -112,23 +112,23 @@ func (runtime *Runtime) RegisterLocalFactory(
 }
 
 // RegisterRemoteFactory registers one type-erased remote constructor.
-func (runtime *Runtime) RegisterRemoteFactory(
+func (r *Runtime) RegisterRemoteFactory(
 	component topology.ComponentID,
 	factory ProviderFactory,
 ) error {
-	return runtime.registerFactory(
+	return r.registerFactory(
 		component,
 		factory,
 		topology.BindingRemote,
 	)
 }
 
-func (runtime *Runtime) registerFactory(
+func (r *Runtime) registerFactory(
 	component topology.ComponentID,
 	factory ProviderFactory,
 	mode topology.BindingMode,
 ) error {
-	if runtime == nil {
+	if r == nil {
 		return fmt.Errorf("%w: runtime is nil", ErrInvalidRuntime)
 	}
 	if !validComponentID(component) {
@@ -146,9 +146,9 @@ func (runtime *Runtime) registerFactory(
 			component,
 		)
 	}
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	switch runtime.state {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch r.state {
 	case runtimeMutable:
 	case runtimeActivating:
 		return ErrRuntimeActivating
@@ -159,11 +159,11 @@ func (runtime *Runtime) registerFactory(
 	default:
 		return ErrInvalidRuntime
 	}
-	providers := runtime.local
-	factories := runtime.localFactories
+	providers := r.local
+	factories := r.localFactories
 	if mode == topology.BindingRemote {
-		providers = runtime.remote
-		factories = runtime.remoteFactories
+		providers = r.remote
+		factories = r.remoteFactories
 	}
 	if _, duplicate := providers[component]; duplicate ||
 		factories[component] != nil {
@@ -183,11 +183,11 @@ func (runtime *Runtime) registerFactory(
 // Selected factories are de-duplicated by component and binding mode. A
 // failed activation closes every constructed provider in reverse order and
 // leaves Runtime mutable for a retry.
-func (runtime *Runtime) Activate(
+func (r *Runtime) Activate(
 	ctx context.Context,
 	snapshot topology.Snapshot,
 ) error {
-	if runtime == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return fmt.Errorf("%w: runtime or context is nil", ErrInvalidRuntime)
 	}
 	bindings, err := snapshot.Bindings()
@@ -198,34 +198,34 @@ func (runtime *Runtime) Activate(
 		return cause
 	}
 
-	runtime.mu.Lock()
-	switch runtime.state {
+	r.mu.Lock()
+	switch r.state {
 	case runtimeMutable:
 	case runtimeActivating:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return ErrRuntimeActivating
 	case runtimeFrozen:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return ErrRuntimeFrozen
 	case runtimeClosed:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return ErrRuntimeClosed
 	default:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return ErrInvalidRuntime
 	}
-	builds, planErr := runtime.activationPlan(bindings)
+	builds, planErr := r.activationPlan(bindings)
 	if planErr != nil {
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return planErr
 	}
-	runtime.state = runtimeActivating
-	runtime.mu.Unlock()
+	r.state = runtimeActivating
+	r.mu.Unlock()
 
 	built := make([]providerBuildResult, 0, len(builds))
 	for _, build := range builds {
 		if cause := context.Cause(ctx); cause != nil {
-			return runtime.failActivation(ctx, built, cause)
+			return r.failActivation(ctx, built, cause)
 		}
 		provider, closeProvider, factoryErr := callProviderFactory(
 			ctx,
@@ -239,7 +239,7 @@ func (runtime *Runtime) Activate(
 			})
 		}
 		if factoryErr != nil {
-			return runtime.failActivation(
+			return r.failActivation(
 				ctx,
 				built,
 				fmt.Errorf(
@@ -252,7 +252,7 @@ func (runtime *Runtime) Activate(
 			)
 		}
 		if isNilProvider(provider) {
-			return runtime.failActivation(
+			return r.failActivation(
 				ctx,
 				built,
 				fmt.Errorf(
@@ -271,26 +271,26 @@ func (runtime *Runtime) Activate(
 		}
 	}
 
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	if runtime.state != runtimeActivating {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.state != runtimeActivating {
 		return ErrRuntimeActivating
 	}
 	for _, result := range built {
-		providers := runtime.local
+		providers := r.local
 		if result.key.mode == topology.BindingRemote {
-			providers = runtime.remote
+			providers = r.remote
 		}
 		providers[result.key.component] = result.provider
 		if result.close != nil {
-			runtime.closers = append(runtime.closers, providerCloser{
+			r.closers = append(r.closers, providerCloser{
 				key:   result.key,
 				close: result.close,
 			})
 		}
 	}
-	runtime.snapshot = snapshot
-	runtime.state = runtimeFrozen
+	r.snapshot = snapshot
+	r.state = runtimeFrozen
 	return nil
 }
 
@@ -300,7 +300,7 @@ type providerBuildResult struct {
 	close    CloseFunc
 }
 
-func (runtime *Runtime) activationPlan(
+func (r *Runtime) activationPlan(
 	bindings []topology.Binding,
 ) ([]providerBuild, error) {
 	selected := make(map[providerKey]struct{})
@@ -322,11 +322,11 @@ func (runtime *Runtime) activationPlan(
 	})
 	builds := make([]providerBuild, 0, len(keys))
 	for _, key := range keys {
-		providers := runtime.local
-		factories := runtime.localFactories
+		providers := r.local
+		factories := r.localFactories
 		if key.mode == topology.BindingRemote {
-			providers = runtime.remote
-			factories = runtime.remoteFactories
+			providers = r.remote
+			factories = r.remoteFactories
 		}
 		if _, exists := providers[key.component]; exists {
 			continue
@@ -345,7 +345,7 @@ func (runtime *Runtime) activationPlan(
 	return builds, nil
 }
 
-func (runtime *Runtime) failActivation(
+func (r *Runtime) failActivation(
 	ctx context.Context,
 	built []providerBuildResult,
 	cause error,
@@ -365,11 +365,11 @@ func (runtime *Runtime) failActivation(
 	)
 	closeErr := closeProviders(rollbackCtx, closers)
 	cancel()
-	runtime.mu.Lock()
-	if runtime.state == runtimeActivating {
-		runtime.state = runtimeMutable
+	r.mu.Lock()
+	if r.state == runtimeActivating {
+		r.state = runtimeMutable
 	}
-	runtime.mu.Unlock()
+	r.mu.Unlock()
 	return errors.Join(cause, closeErr)
 }
 
@@ -377,27 +377,27 @@ func (runtime *Runtime) failActivation(
 //
 // Directly registered providers remain caller-owned. Repeated Close calls are
 // idempotent.
-func (runtime *Runtime) Close(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (r *Runtime) Close(ctx context.Context) error {
+	if r == nil || ctx == nil {
 		return fmt.Errorf("%w: runtime or context is nil", ErrInvalidRuntime)
 	}
-	runtime.mu.Lock()
-	switch runtime.state {
+	r.mu.Lock()
+	switch r.state {
 	case runtimeActivating:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return ErrRuntimeActivating
 	case runtimeClosed:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return nil
 	case runtimeMutable, runtimeFrozen:
 	default:
-		runtime.mu.Unlock()
+		r.mu.Unlock()
 		return ErrInvalidRuntime
 	}
-	closers := append([]providerCloser(nil), runtime.closers...)
-	runtime.closers = nil
-	runtime.state = runtimeClosed
-	runtime.mu.Unlock()
+	closers := append([]providerCloser(nil), r.closers...)
+	r.closers = nil
+	r.state = runtimeClosed
+	r.mu.Unlock()
 	return closeProviders(ctx, closers)
 }
 

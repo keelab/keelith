@@ -224,8 +224,8 @@ func consumeType(value string) (string, string, error) {
 		return "", "", fmt.Errorf("SQL type is empty")
 	}
 	depth := 0
-	for index, character := range value {
-		switch character {
+	for index, r := range value {
+		switch r {
 		case '(':
 			depth++
 		case ')':
@@ -234,7 +234,7 @@ func consumeType(value string) (string, string, error) {
 			}
 			depth--
 		default:
-			if unicode.IsSpace(character) && depth == 0 {
+			if unicode.IsSpace(r) && depth == 0 {
 				return value[:index], strings.TrimSpace(value[index:]), nil
 			}
 		}
@@ -290,24 +290,24 @@ func splitSQL(value string, separator rune) ([]string, error) {
 	depth := 0
 	var quote rune
 	escaped := false
-	for index, character := range value {
+	for index, r := range value {
 		if quote != 0 {
 			if escaped {
 				escaped = false
 				continue
 			}
-			if character == '\\' && quote != '`' {
+			if r == '\\' && quote != '`' {
 				escaped = true
 				continue
 			}
-			if character == quote {
+			if r == quote {
 				quote = 0
 			}
 			continue
 		}
-		switch character {
+		switch r {
 		case '\'', '"', '`':
-			quote = character
+			quote = r
 		case '(':
 			depth++
 		case ')':
@@ -316,9 +316,9 @@ func splitSQL(value string, separator rune) ([]string, error) {
 				return nil, fmt.Errorf("data generator: unbalanced parentheses")
 			}
 		default:
-			if character == separator && depth == 0 {
+			if r == separator && depth == 0 {
 				parts = append(parts, value[start:index])
-				start = index + len(string(character))
+				start = index + len(string(r))
 			}
 		}
 	}
@@ -357,16 +357,16 @@ func unquoteIdentifier(value string) string {
 func exportedIdentifier(value string) string {
 	var result strings.Builder
 	upperNext := true
-	for _, character := range value {
-		if !unicode.IsLetter(character) && !unicode.IsDigit(character) {
+	for _, r := range value {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			upperNext = true
 			continue
 		}
 		if upperNext {
-			result.WriteRune(unicode.ToUpper(character))
+			result.WriteRune(unicode.ToUpper(r))
 			upperNext = false
 		} else {
-			result.WriteRune(character)
+			result.WriteRune(r)
 		}
 	}
 	if result.Len() == 0 {

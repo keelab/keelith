@@ -73,48 +73,48 @@ func NewWithPolicy(logger *slog.Logger, policy Policy) (*Logger, error) {
 }
 
 // Name returns the stable App component identity.
-func (logger *Logger) Name() string { return "keelith.audit" }
+func (a *Logger) Name() string { return "keelith.audit" }
 
 // Start marks the logger available after validating its context.
-func (logger *Logger) Start(ctx context.Context) error {
-	if logger == nil || ctx == nil {
+func (a *Logger) Start(ctx context.Context) error {
+	if a == nil || ctx == nil {
 		return fmt.Errorf("audit: invalid start")
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	logger.mu.Lock()
-	logger.started = true
-	logger.mu.Unlock()
+	a.mu.Lock()
+	a.started = true
+	a.mu.Unlock()
 	return nil
 }
 
 // Stop flushes and shuts down destination handlers that expose those standard
 // lifecycle methods. It is idempotent.
-func (logger *Logger) Stop(ctx context.Context) error {
-	if logger == nil || ctx == nil {
+func (a *Logger) Stop(ctx context.Context) error {
+	if a == nil || ctx == nil {
 		return fmt.Errorf("audit: invalid stop")
 	}
-	logger.mu.Lock()
-	logger.started = false
-	logger.mu.Unlock()
-	return logger.flushAndShutdown(ctx)
+	a.mu.Lock()
+	a.started = false
+	a.mu.Unlock()
+	return a.flushAndShutdown(ctx)
 }
 
 // Flush exports pending audit records when the destination supports it.
-func (logger *Logger) Flush(ctx context.Context) error {
-	if logger == nil || ctx == nil {
+func (a *Logger) Flush(ctx context.Context) error {
+	if a == nil || ctx == nil {
 		return fmt.Errorf("audit: invalid flush")
 	}
-	if flusher, ok := logger.logger.Handler().(interface{ ForceFlush(context.Context) error }); ok {
+	if flusher, ok := a.logger.Handler().(interface{ ForceFlush(context.Context) error }); ok {
 		return flusher.ForceFlush(ctx)
 	}
 	return nil
 }
 
 // Record validates and synchronously emits one audit event without sampling.
-func (logger *Logger) Record(ctx context.Context, event Event) error {
-	if logger == nil || logger.logger == nil {
+func (a *Logger) Record(ctx context.Context, event Event) error {
+	if a == nil || a.logger == nil {
 		return fmt.Errorf("audit: logger is nil")
 	}
 	if ctx == nil {
@@ -133,30 +133,30 @@ func (logger *Logger) Record(ctx context.Context, event Event) error {
 		slog.String("audit.outcome", event.Outcome),
 		slog.String("audit.reason", event.Reason),
 	)
-	if err := logger.logger.Handler().Handle(ctx, record); err != nil {
-		logger.failures.Add(1)
-		if logger.policy == BestEffort {
-			logger.dropped.Add(1)
+	if err := a.logger.Handler().Handle(ctx, record); err != nil {
+		a.failures.Add(1)
+		if a.policy == BestEffort {
+			a.dropped.Add(1)
 			return nil
 		}
 		return fmt.Errorf("audit: emit record: %w", err)
 	}
-	logger.records.Add(1)
+	a.records.Add(1)
 	return nil
 }
 
 // Status returns non-sensitive delivery counters.
-func (logger *Logger) Status() Status {
-	if logger == nil {
+func (a *Logger) Status() Status {
+	if a == nil {
 		return Status{}
 	}
-	return Status{Records: logger.records.Load(), Failures: logger.failures.Load(), Dropped: logger.dropped.Load()}
+	return Status{Records: a.records.Load(), Failures: a.failures.Load(), Dropped: a.dropped.Load()}
 }
 
-func (logger *Logger) flushAndShutdown(ctx context.Context) error {
-	flushErr := logger.Flush(ctx)
+func (a *Logger) flushAndShutdown(ctx context.Context) error {
+	flushErr := a.Flush(ctx)
 	var shutdownErr error
-	if shutdown, ok := logger.logger.Handler().(interface{ Shutdown(context.Context) error }); ok {
+	if shutdown, ok := a.logger.Handler().(interface{ Shutdown(context.Context) error }); ok {
 		shutdownErr = shutdown.Shutdown(ctx)
 	}
 	return errors.Join(flushErr, shutdownErr)
@@ -195,8 +195,8 @@ func validField(value string) bool {
 	if len(value) > maxFieldBytes || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

@@ -109,53 +109,53 @@ func NewEpochRuntime(config EpochRuntimeConfig) (*EpochRuntime, error) {
 }
 
 // Name implements the App Component contract.
-func (runtime *EpochRuntime) Name() string {
-	if runtime == nil {
+func (er *EpochRuntime) Name() string {
+	if er == nil {
 		return ""
 	}
-	return runtime.name
+	return er.name
 }
 
 // Dependencies implements the App DependencyProvider contract.
-func (runtime *EpochRuntime) Dependencies() []string {
-	if runtime == nil {
+func (er *EpochRuntime) Dependencies() []string {
+	if er == nil {
 		return nil
 	}
-	return append([]string(nil), runtime.dependencies...)
+	return append([]string(nil), er.dependencies...)
 }
 
 // Start activates the configured initial snapshot for App startup.
-func (runtime *EpochRuntime) Start(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (er *EpochRuntime) Start(ctx context.Context) error {
+	if er == nil || ctx == nil {
 		return ErrInvalidEpochRuntime
 	}
-	if _, exists := runtime.Active(); exists {
+	if _, exists := er.Active(); exists {
 		return nil
 	}
-	if runtime.initial.Epoch() == 0 || runtime.initial.Hash() == "" {
+	if er.initial.Epoch() == 0 || er.initial.Hash() == "" {
 		return fmt.Errorf(
 			"%w: initial snapshot is required by Start",
 			ErrInvalidEpochRuntime,
 		)
 	}
-	return runtime.Activate(ctx, runtime.initial)
+	return er.Activate(ctx, er.initial)
 }
 
 // Stage constructs and activates one immutable Runtime without changing the
 // active traffic epoch.
-func (runtime *EpochRuntime) Stage(
+func (er *EpochRuntime) Stage(
 	ctx context.Context,
 	snapshot topology.Snapshot,
 ) error {
-	if runtime == nil || ctx == nil {
+	if er == nil || ctx == nil {
 		return ErrInvalidEpochRuntime
 	}
-	runtime.transitions.Lock()
-	defer runtime.transitions.Unlock()
-	return runtime.stageLocked(ctx, snapshot)
+	er.transitions.Lock()
+	defer er.transitions.Unlock()
+	return er.stageLocked(ctx, snapshot)
 }
 
-func (runtime *EpochRuntime) stageLocked(
+func (er *EpochRuntime) stageLocked(
 	ctx context.Context,
 	snapshot topology.Snapshot,
 ) error {
@@ -165,10 +165,10 @@ func (runtime *EpochRuntime) stageLocked(
 	if _, err := snapshot.Bindings(); err != nil {
 		return fmt.Errorf("%w: snapshot: %w", ErrInvalidEpochRuntime, err)
 	}
-	runtime.mu.RLock()
-	closed := runtime.closed
-	_, duplicate := runtime.entries[snapshot.Epoch()]
-	runtime.mu.RUnlock()
+	er.mu.RLock()
+	closed := er.closed
+	_, duplicate := er.entries[snapshot.Epoch()]
+	er.mu.RUnlock()
 	if closed {
 		return ErrEpochRuntimeClosed
 	}
@@ -180,14 +180,14 @@ func (runtime *EpochRuntime) stageLocked(
 		)
 	}
 
-	candidate, buildErr := runtime.build(ctx, snapshot)
+	candidate, buildErr := er.build(ctx, snapshot)
 	if buildErr != nil || candidate == nil {
 		cause := buildErr
 		if cause == nil {
 			cause = ErrInvalidEpochRuntime
 		}
 		closeErr := closeCandidate(ctx, candidate)
-		observeEpoch(ctx, runtime.observer, EpochEvent{
+		observeEpoch(ctx, er.observer, EpochEvent{
 			Kind:   EpochEventStage,
 			Epoch:  snapshot.Epoch(),
 			State:  topology.EpochStaging,
@@ -204,7 +204,7 @@ func (runtime *EpochRuntime) stageLocked(
 	}
 	if err := candidate.Activate(ctx, snapshot); err != nil {
 		closeErr := closeCandidate(ctx, candidate)
-		observeEpoch(ctx, runtime.observer, EpochEvent{
+		observeEpoch(ctx, er.observer, EpochEvent{
 			Kind:   EpochEventStage,
 			Epoch:  snapshot.Epoch(),
 			State:  topology.EpochStaging,
@@ -212,9 +212,9 @@ func (runtime *EpochRuntime) stageLocked(
 		})
 		return errors.Join(err, closeErr)
 	}
-	if err := runtime.manager.Stage(snapshot); err != nil {
+	if err := er.manager.Stage(snapshot); err != nil {
 		closeErr := closeCandidate(ctx, candidate)
-		observeEpoch(ctx, runtime.observer, EpochEvent{
+		observeEpoch(ctx, er.observer, EpochEvent{
 			Kind:   EpochEventStage,
 			Epoch:  snapshot.Epoch(),
 			State:  topology.EpochStaging,
@@ -222,13 +222,13 @@ func (runtime *EpochRuntime) stageLocked(
 		})
 		return errors.Join(err, closeErr)
 	}
-	runtime.mu.Lock()
-	runtime.entries[snapshot.Epoch()] = &epochEntry{
+	er.mu.Lock()
+	er.entries[snapshot.Epoch()] = &epochEntry{
 		snapshot: snapshot,
 		runtime:  candidate,
 	}
-	runtime.mu.Unlock()
-	observeEpoch(ctx, runtime.observer, EpochEvent{
+	er.mu.Unlock()
+	observeEpoch(ctx, er.observer, EpochEvent{
 		Kind:  EpochEventStage,
 		Epoch: snapshot.Epoch(),
 		State: topology.EpochStaging,
@@ -237,16 +237,16 @@ func (runtime *EpochRuntime) stageLocked(
 }
 
 // Ready promotes one staged epoch and returns the previously active epoch.
-func (runtime *EpochRuntime) Ready(epoch uint64) (uint64, error) {
-	return runtime.ReadyContext(context.Background(), epoch)
+func (er *EpochRuntime) Ready(epoch uint64) (uint64, error) {
+	return er.ReadyContext(context.Background(), epoch)
 }
 
 // ReadyContext promotes one staged epoch while honoring caller cancellation.
-func (runtime *EpochRuntime) ReadyContext(
+func (er *EpochRuntime) ReadyContext(
 	ctx context.Context,
 	epoch uint64,
 ) (uint64, error) {
-	if runtime == nil {
+	if er == nil {
 		return 0, ErrInvalidEpochRuntime
 	}
 	if ctx == nil {
@@ -255,28 +255,28 @@ func (runtime *EpochRuntime) ReadyContext(
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
-	runtime.transitions.Lock()
-	defer runtime.transitions.Unlock()
-	return runtime.readyLocked(ctx, epoch)
+	er.transitions.Lock()
+	defer er.transitions.Unlock()
+	return er.readyLocked(ctx, epoch)
 }
 
-func (runtime *EpochRuntime) readyLocked(
+func (er *EpochRuntime) readyLocked(
 	ctx context.Context,
 	epoch uint64,
 ) (uint64, error) {
-	runtime.mu.RLock()
-	closed := runtime.closed
-	_, exists := runtime.entries[epoch]
-	previous := runtime.active
-	runtime.mu.RUnlock()
+	er.mu.RLock()
+	closed := er.closed
+	_, exists := er.entries[epoch]
+	previous := er.active
+	er.mu.RUnlock()
 	if closed {
 		return 0, ErrEpochRuntimeClosed
 	}
 	if !exists {
 		return 0, fmt.Errorf("%w: epoch %d", ErrEpochNotStaged, epoch)
 	}
-	if err := runtime.manager.Ready(epoch); err != nil {
-		observeEpoch(ctx, runtime.observer, EpochEvent{
+	if err := er.manager.Ready(epoch); err != nil {
+		observeEpoch(ctx, er.observer, EpochEvent{
 			Kind:   EpochEventReady,
 			Epoch:  epoch,
 			State:  topology.EpochStaging,
@@ -284,10 +284,10 @@ func (runtime *EpochRuntime) readyLocked(
 		})
 		return 0, err
 	}
-	runtime.mu.Lock()
-	runtime.active = epoch
-	runtime.mu.Unlock()
-	observeEpoch(ctx, runtime.observer, EpochEvent{
+	er.mu.Lock()
+	er.active = epoch
+	er.mu.Unlock()
+	observeEpoch(ctx, er.observer, EpochEvent{
 		Kind:  EpochEventReady,
 		Epoch: epoch,
 		State: topology.EpochReady,
@@ -297,124 +297,124 @@ func (runtime *EpochRuntime) readyLocked(
 
 // Activate constructs, stages, and promotes one snapshot atomically with
 // respect to other epoch lifecycle changes.
-func (runtime *EpochRuntime) Activate(
+func (er *EpochRuntime) Activate(
 	ctx context.Context,
 	snapshot topology.Snapshot,
 ) error {
-	if runtime == nil || ctx == nil {
+	if er == nil || ctx == nil {
 		return ErrInvalidEpochRuntime
 	}
-	runtime.transitions.Lock()
-	defer runtime.transitions.Unlock()
-	if err := runtime.stageLocked(ctx, snapshot); err != nil {
+	er.transitions.Lock()
+	defer er.transitions.Unlock()
+	if err := er.stageLocked(ctx, snapshot); err != nil {
 		return err
 	}
-	if _, err := runtime.readyLocked(ctx, snapshot.Epoch()); err != nil {
-		return errors.Join(err, runtime.discardStaged(ctx, snapshot.Epoch()))
+	if _, err := er.readyLocked(ctx, snapshot.Epoch()); err != nil {
+		return errors.Join(err, er.discardStaged(ctx, snapshot.Epoch()))
 	}
 	return nil
 }
 
 // Drain prevents new leases for an old Ready epoch, waits for every pinned
 // lease, and closes its factory-owned providers.
-func (runtime *EpochRuntime) Drain(
+func (er *EpochRuntime) Drain(
 	ctx context.Context,
 	epoch uint64,
 ) error {
-	if runtime == nil || ctx == nil {
+	if er == nil || ctx == nil {
 		return ErrInvalidEpochRuntime
 	}
-	runtime.transitions.Lock()
-	entry := runtime.entry(epoch)
+	er.transitions.Lock()
+	entry := er.entry(epoch)
 	if entry == nil {
-		runtime.transitions.Unlock()
+		er.transitions.Unlock()
 		return fmt.Errorf("%w: epoch %d", ErrEpochNotStaged, epoch)
 	}
-	state, exists := runtime.manager.State(epoch)
+	state, exists := er.manager.State(epoch)
 	if !exists {
-		runtime.transitions.Unlock()
+		er.transitions.Unlock()
 		return fmt.Errorf("%w: epoch %d", ErrEpochNotStaged, epoch)
 	}
 	switch state {
 	case topology.EpochReady:
-		if err := runtime.manager.Drain(epoch); err != nil {
-			runtime.transitions.Unlock()
+		if err := er.manager.Drain(epoch); err != nil {
+			er.transitions.Unlock()
 			return err
 		}
-		observeEpoch(ctx, runtime.observer, EpochEvent{
+		observeEpoch(ctx, er.observer, EpochEvent{
 			Kind:  EpochEventDrain,
 			Epoch: epoch,
 			State: topology.EpochDraining,
 		})
 	case topology.EpochDraining, topology.EpochStopped:
 	case topology.EpochStaging:
-		runtime.transitions.Unlock()
+		er.transitions.Unlock()
 		return fmt.Errorf(
 			"%w: epoch %d is staging",
 			topology.ErrInvalidEpochTransition,
 			epoch,
 		)
 	default:
-		runtime.transitions.Unlock()
+		er.transitions.Unlock()
 		return topology.ErrInvalidEpochTransition
 	}
-	runtime.transitions.Unlock()
+	er.transitions.Unlock()
 
 	if state != topology.EpochStopped {
-		if err := runtime.manager.Stop(ctx, epoch); err != nil {
+		if err := er.manager.Stop(ctx, epoch); err != nil {
 			return err
 		}
 	}
-	return runtime.closeEntry(ctx, epoch, entry)
+	return er.closeEntry(ctx, epoch, entry)
 }
 
 // Acquire pins the current Ready Runtime for one logical call.
-func (runtime *EpochRuntime) Acquire(
+func (er *EpochRuntime) Acquire(
 	ctx context.Context,
 ) (*EpochLease, error) {
-	return runtime.acquire(ctx, "")
+	return er.acquire(ctx, "")
 }
 
 // AcquireKey pins the Runtime chosen for a stable weighted routing key.
-func (runtime *EpochRuntime) AcquireKey(
+func (er *EpochRuntime) AcquireKey(
 	ctx context.Context,
 	routingKey string,
 ) (*EpochLease, error) {
-	return runtime.acquire(ctx, routingKey)
+	return er.acquire(ctx, routingKey)
 }
 
-func (runtime *EpochRuntime) acquire(
+func (er *EpochRuntime) acquire(
 	ctx context.Context,
 	routingKey string,
 ) (*EpochLease, error) {
-	if runtime == nil || ctx == nil {
+	if er == nil || ctx == nil {
 		return nil, ErrInvalidEpochRuntime
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
-	runtime.mu.RLock()
-	closed := runtime.closed
-	runtime.mu.RUnlock()
+	er.mu.RLock()
+	closed := er.closed
+	er.mu.RUnlock()
 	if closed {
 		return nil, ErrEpochRuntimeClosed
 	}
 	var lease *topology.Lease
 	var err error
 	if routingKey == "" {
-		lease, err = runtime.manager.Acquire()
+		lease, err = er.manager.Acquire()
 	} else {
-		lease, err = runtime.manager.AcquireKey(routingKey)
+		lease, err = er.manager.AcquireKey(routingKey)
 	}
 	if err != nil {
 		return nil, err
 	}
-	entry := runtime.entry(lease.Epoch())
+	entry := er.entry(lease.Epoch())
 	if entry == nil {
 		lease.Release()
 		return nil, ErrEpochNotStaged
 	}
-	observeEpoch(ctx, runtime.observer, EpochEvent{
+	observeEpoch(ctx, er.observer, EpochEvent{
 		Kind:  EpochEventAcquire,
 		Epoch: lease.Epoch(),
 		State: topology.EpochReady,
@@ -422,55 +422,55 @@ func (runtime *EpochRuntime) acquire(
 	return &EpochLease{
 		lease:    lease,
 		runtime:  entry.runtime,
-		observer: runtime.observer,
+		observer: er.observer,
 	}, nil
 }
 
 // Drainable returns zero-weight Ready epochs eligible for rollout cleanup.
-func (runtime *EpochRuntime) Drainable() []uint64 {
-	if runtime == nil {
+func (er *EpochRuntime) Drainable() []uint64 {
+	if er == nil {
 		return nil
 	}
-	return runtime.manager.Drainable()
+	return er.manager.Drainable()
 }
 
 // Active returns the epoch currently used by new Acquire calls.
-func (runtime *EpochRuntime) Active() (uint64, bool) {
-	if runtime == nil {
+func (er *EpochRuntime) Active() (uint64, bool) {
+	if er == nil {
 		return 0, false
 	}
-	runtime.mu.RLock()
-	defer runtime.mu.RUnlock()
-	return runtime.active, runtime.active != 0
+	er.mu.RLock()
+	defer er.mu.RUnlock()
+	return er.active, er.active != 0
 }
 
 // State returns the topology lifecycle state for one epoch.
-func (runtime *EpochRuntime) State(
+func (er *EpochRuntime) State(
 	epoch uint64,
 ) (topology.EpochState, bool) {
-	if runtime == nil {
+	if er == nil {
 		return "", false
 	}
-	return runtime.manager.State(epoch)
+	return er.manager.State(epoch)
 }
 
 // Stop implements the App Component contract and is safely retryable after a
 // context timeout. It rejects new work, drains every Ready epoch, discards
 // staging epochs, and closes stopped runtimes newest-first.
-func (runtime *EpochRuntime) Stop(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (er *EpochRuntime) Stop(ctx context.Context) error {
+	if er == nil || ctx == nil {
 		return ErrInvalidEpochRuntime
 	}
-	runtime.transitions.Lock()
-	runtime.mu.Lock()
-	runtime.closed = true
-	active := runtime.active
-	runtime.active = 0
-	epochs := make([]uint64, 0, len(runtime.entries))
-	for epoch := range runtime.entries {
+	er.transitions.Lock()
+	er.mu.Lock()
+	er.closed = true
+	active := er.active
+	er.active = 0
+	epochs := make([]uint64, 0, len(er.entries))
+	for epoch := range er.entries {
 		epochs = append(epochs, epoch)
 	}
-	runtime.mu.Unlock()
+	er.mu.Unlock()
 	sort.Slice(epochs, func(first, second int) bool {
 		return epochs[first] < epochs[second]
 	})
@@ -480,20 +480,20 @@ func (runtime *EpochRuntime) Stop(ctx context.Context) error {
 		if epoch == active {
 			continue
 		}
-		state, exists := runtime.manager.State(epoch)
+		state, exists := er.manager.State(epoch)
 		if !exists {
 			continue
 		}
 		switch state {
 		case topology.EpochStaging:
-			if err := runtime.manager.Discard(epoch); err != nil {
+			if err := er.manager.Discard(epoch); err != nil {
 				failures = append(failures, err)
 			}
 		case topology.EpochReady:
-			if err := runtime.manager.DrainForShutdown(epoch); err != nil {
+			if err := er.manager.DrainForShutdown(epoch); err != nil {
 				failures = append(failures, err)
 			} else {
-				observeEpoch(ctx, runtime.observer, EpochEvent{
+				observeEpoch(ctx, er.observer, EpochEvent{
 					Kind:  EpochEventDrain,
 					Epoch: epoch,
 					State: topology.EpochDraining,
@@ -502,12 +502,12 @@ func (runtime *EpochRuntime) Stop(ctx context.Context) error {
 		}
 	}
 	if active != 0 {
-		state, exists := runtime.manager.State(active)
+		state, exists := er.manager.State(active)
 		if exists && state == topology.EpochReady {
-			if err := runtime.manager.DrainActive(active); err != nil {
+			if err := er.manager.DrainActive(active); err != nil {
 				failures = append(failures, err)
 			} else {
-				observeEpoch(ctx, runtime.observer, EpochEvent{
+				observeEpoch(ctx, er.observer, EpochEvent{
 					Kind:  EpochEventDrain,
 					Epoch: active,
 					State: topology.EpochDraining,
@@ -515,29 +515,29 @@ func (runtime *EpochRuntime) Stop(ctx context.Context) error {
 			}
 		}
 	}
-	runtime.transitions.Unlock()
+	er.transitions.Unlock()
 
 	sort.Slice(epochs, func(first, second int) bool {
 		return epochs[first] > epochs[second]
 	})
 	for _, epoch := range epochs {
-		entry := runtime.entry(epoch)
+		entry := er.entry(epoch)
 		if entry == nil {
 			continue
 		}
-		state, exists := runtime.manager.State(epoch)
+		state, exists := er.manager.State(epoch)
 		if !exists {
 			continue
 		}
 		if state == topology.EpochDraining {
-			if err := runtime.manager.Stop(ctx, epoch); err != nil {
+			if err := er.manager.Stop(ctx, epoch); err != nil {
 				failures = append(failures, err)
 				continue
 			}
 			state = topology.EpochStopped
 		}
 		if state == topology.EpochStopped {
-			if err := runtime.closeEntry(ctx, epoch, entry); err != nil {
+			if err := er.closeEntry(ctx, epoch, entry); err != nil {
 				failures = append(failures, err)
 			}
 		}
@@ -545,26 +545,26 @@ func (runtime *EpochRuntime) Stop(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
-func (runtime *EpochRuntime) discardStaged(
+func (er *EpochRuntime) discardStaged(
 	ctx context.Context,
 	epoch uint64,
 ) error {
-	entry := runtime.entry(epoch)
+	entry := er.entry(epoch)
 	if entry == nil {
 		return nil
 	}
-	discardErr := runtime.manager.Discard(epoch)
-	closeErr := runtime.closeEntry(ctx, epoch, entry)
+	discardErr := er.manager.Discard(epoch)
+	closeErr := er.closeEntry(ctx, epoch, entry)
 	return errors.Join(discardErr, closeErr)
 }
 
-func (runtime *EpochRuntime) entry(epoch uint64) *epochEntry {
-	runtime.mu.RLock()
-	defer runtime.mu.RUnlock()
-	return runtime.entries[epoch]
+func (er *EpochRuntime) entry(epoch uint64) *epochEntry {
+	er.mu.RLock()
+	defer er.mu.RUnlock()
+	return er.entries[epoch]
 }
 
-func (runtime *EpochRuntime) closeEntry(
+func (er *EpochRuntime) closeEntry(
 	ctx context.Context,
 	epoch uint64,
 	entry *epochEntry,
@@ -574,7 +574,7 @@ func (runtime *EpochRuntime) closeEntry(
 	}
 	entry.closeOnce.Do(func() {
 		entry.closeErr = entry.runtime.Close(ctx)
-		observeEpoch(ctx, runtime.observer, EpochEvent{
+		observeEpoch(ctx, er.observer, EpochEvent{
 			Kind:   EpochEventClose,
 			Epoch:  epoch,
 			State:  topology.EpochStopped,

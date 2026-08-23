@@ -60,8 +60,8 @@ type ReplicaOption interface {
 
 type replicaOptionFunc func(*replicaSettings) error
 
-func (function replicaOptionFunc) applyReplica(settings *replicaSettings) error {
-	return function(settings)
+func (f replicaOptionFunc) applyReplica(settings *replicaSettings) error {
+	return f(settings)
 }
 
 type replicaSettings struct {
@@ -98,8 +98,8 @@ type ReadOption interface {
 
 type readOptionFunc func(*readSettings) error
 
-func (function readOptionFunc) applyRead(settings *readSettings) error {
-	return function(settings)
+func (f readOptionFunc) applyRead(settings *readSettings) error {
+	return f(settings)
 }
 
 type readSettings struct {

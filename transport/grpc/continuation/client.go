@@ -29,8 +29,8 @@ type ClientOption interface {
 
 type clientOptionFunc func(*clientOptions) error
 
-func (function clientOptionFunc) applyClient(options *clientOptions) error {
-	return function(options)
+func (f clientOptionFunc) applyClient(options *clientOptions) error {
+	return f(options)
 }
 
 type clientOptions struct {
@@ -65,17 +65,17 @@ func WithClientCallOptions(callOptions ...grpc.CallOption) ClientOption {
 
 // Client validates the complete ContinuationService protocol surface.
 type Client struct {
-	client           continuationv1.ContinuationServiceClient
+	service          continuationv1.ContinuationServiceClient
 	maxResponseBytes int
 	callOptions      []grpc.CallOption
 }
 
 // NewClient validates and snapshots one generated protocol client.
 func NewClient(
-	client continuationv1.ContinuationServiceClient,
+	c continuationv1.ContinuationServiceClient,
 	optionList ...ClientOption,
 ) (*Client, error) {
-	if isNilClientValue(client) {
+	if isNilClientValue(c) {
 		return nil, ErrInvalidClient
 	}
 	options := clientOptions{
@@ -98,39 +98,39 @@ func NewClient(
 		}
 	}
 	return &Client{
-		client:           client,
+		service:          c,
 		maxResponseBytes: options.maxResponseBytes,
 		callOptions:      append([]grpc.CallOption(nil), options.callOptions...),
 	}, nil
 }
 
 // Start durably creates one call and validates its snapshot identity.
-func (client *Client) Start(
+func (c *Client) Start(
 	ctx context.Context,
 	callID continuation.CallID,
 	target continuation.Operation,
 	input []byte,
 ) (*continuationv1.StartResponse, error) {
-	if err := client.validateCall(ctx, callID); err != nil ||
+	if err := c.validateCall(ctx, callID); err != nil ||
 		target.String() == "" {
 		return nil, ErrInvalidClient
 	}
 	if len(input) > maxWirePayloadBytes {
 		return nil, ErrWireMessageTooLarge
 	}
-	response, err := client.client.Start(
+	response, err := c.service.Start(
 		ctx,
 		&continuationv1.StartRequest{
 			CallId:    callID.String(),
 			Operation: target.String(),
 			Input:     append([]byte(nil), input...),
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateResponse(response); err != nil {
+	if err := c.validateResponse(response); err != nil {
 		return nil, err
 	}
 	if err := validateStartResponse(response, callID, target); err != nil {
@@ -140,21 +140,21 @@ func (client *Client) Start(
 }
 
 // StartWorkflow durably creates one exact immutable workflow definition.
-func (client *Client) StartWorkflow(
+func (c *Client) StartWorkflow(
 	ctx context.Context,
 	callID continuation.CallID,
 	target continuation.Operation,
 	version string,
 	input []byte,
 ) (*continuationv1.StartResponse, error) {
-	if err := client.validateCall(ctx, callID); err != nil ||
+	if err := c.validateCall(ctx, callID); err != nil ||
 		target.String() == "" || !validCommandID(version) {
 		return nil, ErrInvalidClient
 	}
 	if len(input) > maxWirePayloadBytes {
 		return nil, ErrWireMessageTooLarge
 	}
-	response, err := client.client.Start(
+	response, err := c.service.Start(
 		ctx,
 		&continuationv1.StartRequest{
 			CallId:          callID.String(),
@@ -162,12 +162,12 @@ func (client *Client) StartWorkflow(
 			Input:           append([]byte(nil), input...),
 			WorkflowVersion: version,
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateResponse(response); err != nil {
+	if err := c.validateResponse(response); err != nil {
 		return nil, err
 	}
 	if err := validateStartResponse(response, callID, target); err != nil ||
@@ -179,28 +179,28 @@ func (client *Client) StartWorkflow(
 }
 
 // Poll returns one validated live page after an exclusive sequence.
-func (client *Client) Poll(
+func (c *Client) Poll(
 	ctx context.Context,
 	callID continuation.CallID,
 	after uint64,
 	limit int,
 ) (*continuationv1.PollResponse, error) {
-	if err := client.validatePageCall(ctx, callID, limit); err != nil {
+	if err := c.validatePageCall(ctx, callID, limit); err != nil {
 		return nil, err
 	}
-	response, err := client.client.Poll(
+	response, err := c.service.Poll(
 		ctx,
 		&continuationv1.PollRequest{
 			CallId: callID.String(),
 			After:  after,
 			Limit:  uint32(limit),
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateResponse(response); err != nil {
+	if err := c.validateResponse(response); err != nil {
 		return nil, err
 	}
 	if err := validatePageWire(response.GetPage(), callID, after, limit); err != nil {
@@ -210,23 +210,23 @@ func (client *Client) Poll(
 }
 
 // Attach opens one validated server stream after an exclusive sequence.
-func (client *Client) Attach(
+func (c *Client) Attach(
 	ctx context.Context,
 	callID continuation.CallID,
 	after uint64,
 	limit int,
 ) (*AttachmentStream, error) {
-	if err := client.validatePageCall(ctx, callID, limit); err != nil {
+	if err := c.validatePageCall(ctx, callID, limit); err != nil {
 		return nil, err
 	}
-	stream, err := client.client.Attach(
+	stream, err := c.service.Attach(
 		ctx,
 		&continuationv1.AttachRequest{
 			CallId: callID.String(),
 			After:  after,
 			Limit:  uint32(limit),
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
@@ -239,37 +239,37 @@ func (client *Client) Attach(
 		callID:           callID,
 		after:            after,
 		limit:            limit,
-		maxResponseBytes: client.maxResponseBytes,
+		maxResponseBytes: c.maxResponseBytes,
 	}, nil
 }
 
 // Signal submits one idempotent signal and validates the returned identity.
-func (client *Client) Signal(
+func (c *Client) Signal(
 	ctx context.Context,
 	callID continuation.CallID,
 	commandID string,
 	payload []byte,
 ) (*continuationv1.SignalResponse, error) {
-	if err := client.validateCall(ctx, callID); err != nil ||
+	if err := c.validateCall(ctx, callID); err != nil ||
 		!validCommandID(commandID) {
 		return nil, ErrInvalidClient
 	}
 	if len(payload) > maxWirePayloadBytes {
 		return nil, ErrWireMessageTooLarge
 	}
-	response, err := client.client.Signal(
+	response, err := c.service.Signal(
 		ctx,
 		&continuationv1.SignalRequest{
 			CallId:    callID.String(),
 			CommandId: commandID,
 			Payload:   append([]byte(nil), payload...),
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateSnapshotResponse(
+	if err := c.validateSnapshotResponse(
 		response,
 		response.GetSnapshot(),
 		callID,
@@ -280,27 +280,27 @@ func (client *Client) Signal(
 }
 
 // Cancel submits one idempotent cancellation command.
-func (client *Client) Cancel(
+func (c *Client) Cancel(
 	ctx context.Context,
 	callID continuation.CallID,
 	commandID string,
 ) (*continuationv1.CancelResponse, error) {
-	if err := client.validateCall(ctx, callID); err != nil ||
+	if err := c.validateCall(ctx, callID); err != nil ||
 		!validCommandID(commandID) {
 		return nil, ErrInvalidClient
 	}
-	response, err := client.client.Cancel(
+	response, err := c.service.Cancel(
 		ctx,
 		&continuationv1.CancelRequest{
 			CallId:    callID.String(),
 			CommandId: commandID,
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateSnapshotResponse(
+	if err := c.validateSnapshotResponse(
 		response,
 		response.GetSnapshot(),
 		callID,
@@ -311,28 +311,28 @@ func (client *Client) Cancel(
 }
 
 // GetHistory returns one separately authorized historical page.
-func (client *Client) GetHistory(
+func (c *Client) GetHistory(
 	ctx context.Context,
 	callID continuation.CallID,
 	after uint64,
 	limit int,
 ) (*continuationv1.GetHistoryResponse, error) {
-	if err := client.validatePageCall(ctx, callID, limit); err != nil {
+	if err := c.validatePageCall(ctx, callID, limit); err != nil {
 		return nil, err
 	}
-	response, err := client.client.GetHistory(
+	response, err := c.service.GetHistory(
 		ctx,
 		&continuationv1.GetHistoryRequest{
 			CallId: callID.String(),
 			After:  after,
 			Limit:  uint32(limit),
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateResponse(response); err != nil {
+	if err := c.validateResponse(response); err != nil {
 		return nil, err
 	}
 	if err := validatePageWire(response.GetPage(), callID, after, limit); err != nil {
@@ -342,18 +342,18 @@ func (client *Client) GetHistory(
 }
 
 // GetHistoryDetail returns one separately authorized payload-bearing page.
-func (client *Client) GetHistoryDetail(
+func (c *Client) GetHistoryDetail(
 	ctx context.Context,
 	callID continuation.CallID,
 	after uint64,
 	limit int,
 	maxPayloadBytes int,
 ) (*continuationv1.GetHistoryResponse, error) {
-	if err := client.validatePageCall(ctx, callID, limit); err != nil ||
+	if err := c.validatePageCall(ctx, callID, limit); err != nil ||
 		maxPayloadBytes <= 0 || maxPayloadBytes > maxWireHistoryPayloadBytes {
 		return nil, ErrInvalidClient
 	}
-	response, err := client.client.GetHistory(
+	response, err := c.service.GetHistory(
 		ctx,
 		&continuationv1.GetHistoryRequest{
 			CallId:          callID.String(),
@@ -362,12 +362,12 @@ func (client *Client) GetHistoryDetail(
 			IncludePayload:  true,
 			MaxPayloadBytes: uint32(maxPayloadBytes),
 		},
-		client.callOptions...,
+		c.callOptions...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.validateResponse(response); err != nil {
+	if err := c.validateResponse(response); err != nil {
 		return nil, err
 	}
 	if err := validatePageWire(response.GetPage(), callID, after, limit); err != nil {
@@ -413,11 +413,11 @@ func (stream *AttachmentStream) Recv() (*continuationv1.AttachResponse, error) {
 	return response, nil
 }
 
-func (client *Client) validateCall(
+func (c *Client) validateCall(
 	ctx context.Context,
 	callID continuation.CallID,
 ) error {
-	if client == nil || ctx == nil || isNilClientValue(client.client) ||
+	if c == nil || ctx == nil || isNilClientValue(c.service) ||
 		callID.String() == "" {
 		return ErrInvalidClient
 	}
@@ -427,12 +427,12 @@ func (client *Client) validateCall(
 	return nil
 }
 
-func (client *Client) validatePageCall(
+func (c *Client) validatePageCall(
 	ctx context.Context,
 	callID continuation.CallID,
 	limit int,
 ) error {
-	if err := client.validateCall(ctx, callID); err != nil {
+	if err := c.validateCall(ctx, callID); err != nil {
 		return err
 	}
 	if limit < 1 || limit > maxWirePageFrames {
@@ -441,22 +441,22 @@ func (client *Client) validatePageCall(
 	return nil
 }
 
-func (client *Client) validateResponse(response proto.Message) error {
+func (c *Client) validateResponse(response proto.Message) error {
 	if response == nil {
 		return ErrInvalidWireMessage
 	}
-	if proto.Size(response) > client.maxResponseBytes {
+	if proto.Size(response) > c.maxResponseBytes {
 		return ErrWireMessageTooLarge
 	}
 	return nil
 }
 
-func (client *Client) validateSnapshotResponse(
+func (c *Client) validateSnapshotResponse(
 	response proto.Message,
 	snapshot *continuationv1.Snapshot,
 	callID continuation.CallID,
 ) error {
-	if err := client.validateResponse(response); err != nil {
+	if err := c.validateResponse(response); err != nil {
 		return err
 	}
 	if validateSnapshotWire(snapshot) != nil ||

@@ -25,11 +25,11 @@ func New() *Repository {
 }
 
 // Load returns one immutable record snapshot.
-func (repository *Repository) Load(
+func (r *Repository) Load(
 	ctx context.Context,
 	id string,
 ) (saga.Record, error) {
-	if repository == nil || ctx == nil {
+	if r == nil || ctx == nil {
 		return saga.Record{}, fmt.Errorf(
 			"%w: repository or context",
 			saga.ErrInvalidOption,
@@ -38,9 +38,9 @@ func (repository *Repository) Load(
 	if cause := context.Cause(ctx); cause != nil {
 		return saga.Record{}, cause
 	}
-	repository.mu.Lock()
-	defer repository.mu.Unlock()
-	record, exists := repository.records[id]
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	record, exists := r.records[id]
 	if !exists {
 		return saga.Record{}, saga.ErrNotFound
 	}
@@ -48,12 +48,12 @@ func (repository *Repository) Load(
 }
 
 // Create inserts one instance under its first ownership fence.
-func (repository *Repository) Create(
+func (r *Repository) Create(
 	ctx context.Context,
 	record saga.Record,
 	fence uint64,
 ) (saga.Record, error) {
-	if repository == nil || ctx == nil || fence == 0 {
+	if r == nil || ctx == nil || fence == 0 {
 		return saga.Record{}, fmt.Errorf(
 			"%w: repository, context, or fence",
 			saga.ErrInvalidOption,
@@ -66,24 +66,24 @@ func (repository *Repository) Create(
 	if err := record.Validate(); err != nil {
 		return saga.Record{}, err
 	}
-	repository.mu.Lock()
-	defer repository.mu.Unlock()
-	if _, exists := repository.records[record.ID]; exists {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.records[record.ID]; exists {
 		return saga.Record{}, saga.ErrAlreadyExists
 	}
-	repository.records[record.ID] = record
-	repository.fences[record.ID] = fence
+	r.records[record.ID] = record
+	r.fences[record.ID] = fence
 	return record, nil
 }
 
 // Save atomically checks revision and ownership generation.
-func (repository *Repository) Save(
+func (r *Repository) Save(
 	ctx context.Context,
 	record saga.Record,
 	expectedRevision uint64,
 	fence uint64,
 ) (saga.Record, error) {
-	if repository == nil ||
+	if r == nil ||
 		ctx == nil ||
 		expectedRevision == 0 ||
 		fence == 0 {
@@ -95,13 +95,13 @@ func (repository *Repository) Save(
 	if cause := context.Cause(ctx); cause != nil {
 		return saga.Record{}, cause
 	}
-	repository.mu.Lock()
-	defer repository.mu.Unlock()
-	current, exists := repository.records[record.ID]
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, exists := r.records[record.ID]
 	if !exists {
 		return saga.Record{}, saga.ErrNotFound
 	}
-	if fence < repository.fences[record.ID] {
+	if fence < r.fences[record.ID] {
 		return saga.Record{}, saga.ErrStaleFence
 	}
 	if current.Revision != expectedRevision {
@@ -115,7 +115,7 @@ func (repository *Repository) Save(
 	if err := record.Validate(); err != nil {
 		return saga.Record{}, err
 	}
-	repository.records[record.ID] = record
-	repository.fences[record.ID] = fence
+	r.records[record.ID] = record
+	r.fences[record.ID] = fence
 	return record, nil
 }

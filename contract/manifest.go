@@ -302,8 +302,8 @@ func validProjectionField(value string) bool {
 	if value == "" || len(value) > 1024 || strings.TrimSpace(value) != value {
 		return false
 	}
-	for index, character := range value {
-		valid := character == '_' || character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || index > 0 && character >= '0' && character <= '9'
+	for index, r := range value {
+		valid := r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || index > 0 && r >= '0' && r <= '9'
 		if !valid {
 			return false
 		}
@@ -347,24 +347,24 @@ func NewCatalog(manifests ...Manifest) (*Catalog, error) {
 }
 
 // Manifests returns an independent copy of all source manifests.
-func (catalog *Catalog) Manifests() []Manifest {
-	if catalog == nil {
+func (c *Catalog) Manifests() []Manifest {
+	if c == nil {
 		return nil
 	}
-	result := make([]Manifest, len(catalog.manifests))
-	for index, manifest := range catalog.manifests {
+	result := make([]Manifest, len(c.manifests))
+	for index, manifest := range c.manifests {
 		result[index] = cloneManifest(manifest)
 	}
 	return result
 }
 
 // Describe returns deterministic static dependency diagnostics.
-func (catalog *Catalog) Describe() Description {
-	if catalog == nil {
+func (c *Catalog) Describe() Description {
+	if c == nil {
 		return Description{}
 	}
 	description := Description{}
-	for _, manifest := range catalog.manifests {
+	for _, manifest := range c.manifests {
 		description.Sources = append(description.Sources, manifest.Source)
 		transports := make(map[string]map[string]struct{})
 		httpRoutes := make(map[string]int)
@@ -587,8 +587,8 @@ func validHTTPFieldName(value string) bool {
 	if strings.Contains(value, ".") {
 		return false
 	}
-	for index, character := range value {
-		valid := character == '_' || character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || index > 0 && character >= '0' && character <= '9'
+	for index, r := range value {
+		valid := r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || index > 0 && r >= '0' && r <= '9'
 		if !valid {
 			return false
 		}
@@ -656,8 +656,8 @@ func validIdentity(value string) bool {
 	if value == "" || len(value) > maxIdentityBytes || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

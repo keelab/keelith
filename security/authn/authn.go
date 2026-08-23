@@ -62,12 +62,12 @@ type Extractor interface {
 // ExtractorFunc adapts a function to Extractor.
 type ExtractorFunc func(context.Context, any) (Credential, error)
 
-// Extract calls function.
-func (function ExtractorFunc) Extract(
+// Extract delegates to fn.
+func (fn ExtractorFunc) Extract(
 	ctx context.Context,
 	request any,
 ) (Credential, error) {
-	return function(ctx, request)
+	return fn(ctx, request)
 }
 
 // Authenticator validates a credential and returns an immutable Principal.
@@ -81,12 +81,12 @@ type AuthenticatorFunc func(
 	Credential,
 ) (security.Principal, error)
 
-// Authenticate calls function.
-func (function AuthenticatorFunc) Authenticate(
+// Authenticate delegates to fn.
+func (fn AuthenticatorFunc) Authenticate(
 	ctx context.Context,
 	credential Credential,
 ) (security.Principal, error) {
-	return function(ctx, credential)
+	return fn(ctx, credential)
 }
 
 // MetadataBearer extracts exactly one Bearer token from inbound metadata.

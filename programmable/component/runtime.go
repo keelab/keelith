@@ -68,24 +68,24 @@ func NewRuntime() *Runtime {
 }
 
 // RegisterLocal registers one in-process provider before Freeze.
-func (runtime *Runtime) RegisterLocal(
+func (r *Runtime) RegisterLocal(
 	component topology.ComponentID,
 	provider any,
 ) error {
-	return runtime.register(component, provider, topology.BindingLocal)
+	return r.register(component, provider, topology.BindingLocal)
 }
 
 // RegisterRemote registers one remote provider before Freeze.
-func (runtime *Runtime) RegisterRemote(
+func (r *Runtime) RegisterRemote(
 	component topology.ComponentID,
 	provider any,
 ) error {
-	return runtime.register(component, provider, topology.BindingRemote)
+	return r.register(component, provider, topology.BindingRemote)
 }
 
 // Freeze captures one activated topology Snapshot for the Runtime lifetime.
-func (runtime *Runtime) Freeze(snapshot topology.Snapshot) error {
-	if runtime == nil {
+func (r *Runtime) Freeze(snapshot topology.Snapshot) error {
+	if r == nil {
 		return fmt.Errorf("%w: runtime is nil", ErrInvalidRuntime)
 	}
 	if snapshot.Epoch() == 0 || snapshot.Hash() == "" {
@@ -94,9 +94,9 @@ func (runtime *Runtime) Freeze(snapshot topology.Snapshot) error {
 			ErrInvalidRuntime,
 		)
 	}
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	switch runtime.state {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch r.state {
 	case runtimeMutable:
 	case runtimeActivating:
 		return ErrRuntimeActivating
@@ -107,17 +107,17 @@ func (runtime *Runtime) Freeze(snapshot topology.Snapshot) error {
 	default:
 		return ErrInvalidRuntime
 	}
-	runtime.snapshot = snapshot
-	runtime.state = runtimeFrozen
+	r.snapshot = snapshot
+	r.state = runtimeFrozen
 	return nil
 }
 
-func (runtime *Runtime) register(
+func (r *Runtime) register(
 	component topology.ComponentID,
 	provider any,
 	mode topology.BindingMode,
 ) error {
-	if runtime == nil {
+	if r == nil {
 		return fmt.Errorf("%w: runtime is nil", ErrInvalidRuntime)
 	}
 	if !validComponentID(component) {
@@ -134,9 +134,9 @@ func (runtime *Runtime) register(
 			component,
 		)
 	}
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
-	switch runtime.state {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch r.state {
 	case runtimeMutable:
 	case runtimeActivating:
 		return ErrRuntimeActivating
@@ -147,11 +147,11 @@ func (runtime *Runtime) register(
 	default:
 		return ErrInvalidRuntime
 	}
-	providers := runtime.local
-	factories := runtime.localFactories
+	providers := r.local
+	factories := r.localFactories
 	if mode == topology.BindingRemote {
-		providers = runtime.remote
-		factories = runtime.remoteFactories
+		providers = r.remote
+		factories = r.remoteFactories
 	}
 	if _, duplicate := providers[component]; duplicate ||
 		factories[component] != nil {
@@ -168,29 +168,29 @@ func (runtime *Runtime) register(
 
 // Bind resolves one declared edge and returns only its selected typed provider.
 func Bind[T any](
-	runtime *Runtime,
+	r *Runtime,
 	source topology.ComponentID,
 	target topology.ComponentID,
 ) (Ref[T], error) {
-	if runtime == nil {
+	if r == nil {
 		return Ref[T]{}, fmt.Errorf("%w: runtime is nil", ErrInvalidRuntime)
 	}
-	runtime.mu.RLock()
-	defer runtime.mu.RUnlock()
-	switch runtime.state {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	switch r.state {
 	case runtimeFrozen:
 	case runtimeClosed:
 		return Ref[T]{}, ErrRuntimeClosed
 	default:
 		return Ref[T]{}, ErrRuntimeNotFrozen
 	}
-	binding, err := runtime.snapshot.Resolve(source, target)
+	binding, err := r.snapshot.Resolve(source, target)
 	if err != nil {
 		return Ref[T]{}, err
 	}
-	providers := runtime.local
+	providers := r.local
 	if binding.Mode == topology.BindingRemote {
-		providers = runtime.remote
+		providers = r.remote
 	}
 	value, exists := providers[target]
 	if !exists {
@@ -221,8 +221,8 @@ func validComponentID(component topology.ComponentID) bool {
 		strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

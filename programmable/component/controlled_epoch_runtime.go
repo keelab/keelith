@@ -112,81 +112,81 @@ func NewControlledEpochRuntime(
 }
 
 // Name returns the stable App component identity.
-func (runtime *ControlledEpochRuntime) Name() string {
-	if runtime == nil {
+func (cr *ControlledEpochRuntime) Name() string {
+	if cr == nil {
 		return ""
 	}
-	return runtime.name
+	return cr.name
 }
 
 // Dependencies returns an independent App component dependency list.
-func (runtime *ControlledEpochRuntime) Dependencies() []string {
-	if runtime == nil {
+func (cr *ControlledEpochRuntime) Dependencies() []string {
+	if cr == nil {
 		return nil
 	}
-	return append([]string(nil), runtime.dependencies...)
+	return append([]string(nil), cr.dependencies...)
 }
 
 // Start synchronously applies the initial candidate before starting Watch.
-func (runtime *ControlledEpochRuntime) Start(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (cr *ControlledEpochRuntime) Start(ctx context.Context) error {
+	if cr == nil || ctx == nil {
 		return ErrInvalidControlledEpochRuntime
 	}
-	runtime.mu.Lock()
-	if runtime.started {
-		runtime.mu.Unlock()
+	cr.mu.Lock()
+	if cr.started {
+		cr.mu.Unlock()
 		return ErrControlledEpochRuntimeStarted
 	}
-	runtime.started = true
-	runtime.mu.Unlock()
-	if err := runtime.controller.Sync(ctx); err != nil {
+	cr.started = true
+	cr.mu.Unlock()
+	if err := cr.controller.Sync(ctx); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(
 			context.WithoutCancel(ctx),
 			defaultFactoryRollbackTimeout,
 		)
-		cleanupErr := runtime.runtime.Stop(cleanupCtx)
+		cleanupErr := cr.runtime.Stop(cleanupCtx)
 		cancel()
-		runtime.mu.Lock()
-		runtime.runErr = err
-		runtime.stopped = true
-		runtime.mu.Unlock()
+		cr.mu.Lock()
+		cr.runErr = err
+		cr.stopped = true
+		cr.mu.Unlock()
 		return errors.Join(
 			err,
 			cleanupErr,
-			shutdownControlSource(ctx, runtime.source),
+			shutdownControlSource(ctx, cr.source),
 		)
 	}
 	runCtx, cancel := context.WithCancelCause(ctx)
 	done := make(chan struct{})
-	runtime.mu.Lock()
-	runtime.cancel = cancel
-	runtime.done = done
-	runtime.mu.Unlock()
+	cr.mu.Lock()
+	cr.cancel = cancel
+	cr.done = done
+	cr.mu.Unlock()
 	go func() {
-		err := runtime.controller.Run(runCtx)
+		err := cr.controller.Run(runCtx)
 		if errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded) && context.Cause(runCtx) != nil {
 			err = nil
 		}
-		runtime.mu.Lock()
-		runtime.runErr = err
-		runtime.mu.Unlock()
+		cr.mu.Lock()
+		cr.runErr = err
+		cr.mu.Unlock()
 		close(done)
 	}()
 	return nil
 }
 
 // Stop ends Watch, drains every epoch and releases Source-owned resources.
-func (runtime *ControlledEpochRuntime) Stop(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (cr *ControlledEpochRuntime) Stop(ctx context.Context) error {
+	if cr == nil || ctx == nil {
 		return ErrInvalidControlledEpochRuntime
 	}
-	runtime.mu.Lock()
-	cancel := runtime.cancel
-	done := runtime.done
-	started := runtime.started
-	runtime.stopped = true
-	runtime.mu.Unlock()
+	cr.mu.Lock()
+	cancel := cr.cancel
+	done := cr.done
+	started := cr.started
+	cr.stopped = true
+	cr.mu.Unlock()
 	if cancel != nil {
 		cancel(context.Canceled)
 	}
@@ -198,44 +198,44 @@ func (runtime *ControlledEpochRuntime) Stop(ctx context.Context) error {
 			waitErr = context.Cause(ctx)
 		}
 	}
-	runtime.mu.Lock()
-	runErr := runtime.runErr
-	runtime.mu.Unlock()
+	cr.mu.Lock()
+	runErr := cr.runErr
+	cr.mu.Unlock()
 	if !started {
 		runErr = nil
 	}
 	return errors.Join(
 		waitErr,
 		runErr,
-		runtime.runtime.Stop(ctx),
-		shutdownControlSource(ctx, runtime.source),
+		cr.runtime.Stop(ctx),
+		shutdownControlSource(ctx, cr.source),
 	)
 }
 
 // Acquire pins the active topology and component providers for one call.
-func (runtime *ControlledEpochRuntime) Acquire(
+func (cr *ControlledEpochRuntime) Acquire(
 	ctx context.Context,
 ) (*EpochLease, error) {
-	if runtime == nil {
+	if cr == nil {
 		return nil, ErrInvalidControlledEpochRuntime
 	}
-	return runtime.runtime.Acquire(ctx)
+	return cr.runtime.Acquire(ctx)
 }
 
 // AcquireKey pins the epoch selected for one stable weighted routing key.
-func (runtime *ControlledEpochRuntime) AcquireKey(
+func (cr *ControlledEpochRuntime) AcquireKey(
 	ctx context.Context,
 	routingKey string,
 ) (*EpochLease, error) {
-	if runtime == nil {
+	if cr == nil {
 		return nil, ErrInvalidControlledEpochRuntime
 	}
-	return runtime.runtime.AcquireKey(ctx, routingKey)
+	return cr.runtime.AcquireKey(ctx, routingKey)
 }
 
 // Status returns revision, degraded state and process-local active epoch.
-func (runtime *ControlledEpochRuntime) Status() ControlledEpochStatus {
-	if runtime == nil {
+func (cr *ControlledEpochRuntime) Status() ControlledEpochStatus {
+	if cr == nil {
 		return ControlledEpochStatus{
 			Control: control.Status{
 				Degraded: true, FailureClass: control.FailureSource,
@@ -243,20 +243,20 @@ func (runtime *ControlledEpochRuntime) Status() ControlledEpochStatus {
 			Stopped: true,
 		}
 	}
-	active, _ := runtime.runtime.Active()
-	runtime.mu.Lock()
-	defer runtime.mu.Unlock()
+	active, _ := cr.runtime.Active()
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
 	return ControlledEpochStatus{
-		Control:     runtime.controller.Status(),
+		Control:     cr.controller.Status(),
 		ActiveEpoch: active,
-		Running:     runtime.started && !runtime.stopped && runtime.runErr == nil,
-		Stopped:     runtime.stopped,
+		Running:     cr.started && !cr.stopped && cr.runErr == nil,
+		Stopped:     cr.stopped,
 	}
 }
 
 // HealthCheck reports serving last-good as healthy while retaining degraded
 // detail in Status and Ops.
-func (runtime *ControlledEpochRuntime) HealthCheck(
+func (cr *ControlledEpochRuntime) HealthCheck(
 	ctx context.Context,
 ) health.Result {
 	if ctx == nil {
@@ -265,7 +265,7 @@ func (runtime *ControlledEpochRuntime) HealthCheck(
 	if cause := context.Cause(ctx); cause != nil {
 		return health.Unknown("check-cancelled")
 	}
-	status := runtime.Status()
+	status := cr.Status()
 	if status.Stopped {
 		return health.Fail("stopped")
 	}

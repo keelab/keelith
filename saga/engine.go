@@ -119,11 +119,11 @@ func New(config Config) (*Engine, error) {
 }
 
 // Run creates or resumes one saga instance under a renewable lease.
-func (engine *Engine) Run(
+func (e *Engine) Run(
 	ctx context.Context,
 	id string,
 ) (result Result, resultErr error) {
-	if engine == nil || ctx == nil || !validIdentity(id, maxIdentityBytes) {
+	if e == nil || ctx == nil || !validIdentity(id, maxIdentityBytes) {
 		return Result{}, fmt.Errorf(
 			"%w: engine, context, or instance ID",
 			ErrInvalidOption,
@@ -132,26 +132,26 @@ func (engine *Engine) Run(
 	if cause := context.Cause(ctx); cause != nil {
 		return Result{}, cause
 	}
-	key := "saga/" + engine.definition.Name + "/" + id
-	lease, acquired, err := engine.coordinator.TryAcquire(
+	key := "saga/" + e.definition.Name + "/" + id
+	lease, acquired, err := e.coordinator.TryAcquire(
 		ctx,
 		key,
-		engine.leaseTTL,
+		e.leaseTTL,
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("saga: acquire lease: %w", err)
 	}
 	if !acquired {
-		engine.contended.Add(1)
+		e.contended.Add(1)
 		return Result{}, ErrContended
 	}
-	engine.active.Add(1)
-	engine.started.Add(1)
-	defer engine.active.Add(-1)
+	e.active.Add(1)
+	e.started.Add(1)
+	defer e.active.Add(-1)
 	defer func() {
 		releaseContext, cancel := context.WithTimeout(
 			context.Background(),
-			engine.leaseTTL,
+			e.leaseTTL,
 		)
 		defer cancel()
 		resultErr = errors.Join(resultErr, lease.Release(releaseContext))
@@ -173,7 +173,7 @@ func (engine *Engine) Run(
 		}
 	}()
 
-	record, err := engine.loadOrCreate(runContext, id, lease.Fence())
+	record, err := e.loadOrCreate(runContext, id, lease.Fence())
 	if err != nil {
 		return Result{}, err
 	}
@@ -181,7 +181,7 @@ func (engine *Engine) Run(
 	for {
 		if cause := context.Cause(runContext); cause != nil {
 			if errors.Is(cause, coordination.ErrLeaseLost) {
-				engine.leaseLosses.Add(1)
+				e.leaseLosses.Add(1)
 			}
 			return result, cause
 		}
@@ -196,51 +196,51 @@ func (engine *Engine) Run(
 			result.Record = record
 			return result, ErrFailed
 		case StatusRunning:
-			if record.NextStep >= len(engine.definition.Steps) {
+			if record.NextStep >= len(e.definition.Steps) {
 				record.Status = StatusCompleted
 				record.Attempt = 0
-				record, err = engine.save(runContext, record, lease.Fence())
+				record, err = e.save(runContext, record, lease.Fence())
 				if err != nil {
 					return result, err
 				}
-				engine.completed.Add(1)
+				e.completed.Add(1)
 				continue
 			}
-			step := engine.definition.Steps[record.NextStep]
+			step := e.definition.Steps[record.NextStep]
 			record.Attempt++
-			record, err = engine.save(runContext, record, lease.Fence())
+			record, err = e.save(runContext, record, lease.Fence())
 			if err != nil {
 				return result, err
 			}
-			invocation := engine.invocation(
+			invocation := e.invocation(
 				record,
 				step.Name,
 				record.NextStep,
 				PhaseAction,
 				lease.Fence(),
 			)
-			if err := engine.invoke(runContext, step.Action, invocation); err != nil {
+			if err := e.invoke(runContext, step.Action, invocation); err != nil {
 				if cause := context.Cause(runContext); cause != nil {
 					return result, cause
 				}
-				engine.actionFailures.Add(1)
+				e.actionFailures.Add(1)
 				record.Status = StatusCompensating
 				record.CompensationIndex = record.NextStep - 1
 				record.Attempt = 0
-				record.FailureReason = engine.failureReason(err)
+				record.FailureReason = e.failureReason(err)
 				record.CauseReason = record.FailureReason
-				record, err = engine.save(runContext, record, lease.Fence())
+				record, err = e.save(runContext, record, lease.Fence())
 				if err != nil {
 					return result, err
 				}
-				engine.compensated.Add(1)
+				e.compensated.Add(1)
 				continue
 			}
 			result.Actions++
 			record.NextStep++
 			record.Attempt = 0
 			record.FailureReason = ""
-			record, err = engine.save(runContext, record, lease.Fence())
+			record, err = e.save(runContext, record, lease.Fence())
 			if err != nil {
 				return result, err
 			}
@@ -248,35 +248,35 @@ func (engine *Engine) Run(
 			if record.CompensationIndex < 0 {
 				record.Status = StatusCompensated
 				record.Attempt = 0
-				record, err = engine.save(runContext, record, lease.Fence())
+				record, err = e.save(runContext, record, lease.Fence())
 				if err != nil {
 					return result, err
 				}
 				continue
 			}
-			step := engine.definition.Steps[record.CompensationIndex]
+			step := e.definition.Steps[record.CompensationIndex]
 			if step.Compensate == nil {
 				record.CompensationIndex--
 				record.Attempt = 0
-				record, err = engine.save(runContext, record, lease.Fence())
+				record, err = e.save(runContext, record, lease.Fence())
 				if err != nil {
 					return result, err
 				}
 				continue
 			}
 			record.Attempt++
-			record, err = engine.save(runContext, record, lease.Fence())
+			record, err = e.save(runContext, record, lease.Fence())
 			if err != nil {
 				return result, err
 			}
-			invocation := engine.invocation(
+			invocation := e.invocation(
 				record,
 				step.Name,
 				record.CompensationIndex,
 				PhaseCompensation,
 				lease.Fence(),
 			)
-			if err := engine.invoke(
+			if err := e.invoke(
 				runContext,
 				step.Compensate,
 				invocation,
@@ -284,12 +284,12 @@ func (engine *Engine) Run(
 				if cause := context.Cause(runContext); cause != nil {
 					return result, cause
 				}
-				engine.compensationFailures.Add(1)
-				record.FailureReason = engine.failureReason(err)
-				if record.Attempt >= engine.maxCompensationAttempts {
+				e.compensationFailures.Add(1)
+				record.FailureReason = e.failureReason(err)
+				if record.Attempt >= e.maxCompensationAttempts {
 					record.Status = StatusFailed
 				}
-				record, saveErr := engine.save(
+				record, saveErr := e.save(
 					runContext,
 					record,
 					lease.Fence(),
@@ -299,7 +299,7 @@ func (engine *Engine) Run(
 					return result, saveErr
 				}
 				if record.Status == StatusFailed {
-					engine.terminalFailures.Add(1)
+					e.terminalFailures.Add(1)
 					return result, errors.Join(ErrFailed, err)
 				}
 				return result, fmt.Errorf(
@@ -312,7 +312,7 @@ func (engine *Engine) Run(
 			record.CompensationIndex--
 			record.Attempt = 0
 			record.FailureReason = record.CauseReason
-			record, err = engine.save(runContext, record, lease.Fence())
+			record, err = e.save(runContext, record, lease.Fence())
 			if err != nil {
 				return result, err
 			}
@@ -324,80 +324,80 @@ func (engine *Engine) Run(
 }
 
 // Description returns aggregate orchestration status without instance IDs.
-func (engine *Engine) Description() Description {
-	if engine == nil {
+func (e *Engine) Description() Description {
+	if e == nil {
 		return Description{}
 	}
 	return Description{
-		Active:               engine.active.Load(),
-		Started:              engine.started.Load(),
-		Completed:            engine.completed.Load(),
-		Compensated:          engine.compensated.Load(),
-		TerminalFailures:     engine.terminalFailures.Load(),
-		Contended:            engine.contended.Load(),
-		ActionFailures:       engine.actionFailures.Load(),
-		CompensationFailures: engine.compensationFailures.Load(),
-		LeaseLosses:          engine.leaseLosses.Load(),
-		RepositoryFailures:   engine.repositoryFailures.Load(),
+		Active:               e.active.Load(),
+		Started:              e.started.Load(),
+		Completed:            e.completed.Load(),
+		Compensated:          e.compensated.Load(),
+		TerminalFailures:     e.terminalFailures.Load(),
+		Contended:            e.contended.Load(),
+		ActionFailures:       e.actionFailures.Load(),
+		CompensationFailures: e.compensationFailures.Load(),
+		LeaseLosses:          e.leaseLosses.Load(),
+		RepositoryFailures:   e.repositoryFailures.Load(),
 	}
 }
 
-func (engine *Engine) loadOrCreate(
+func (e *Engine) loadOrCreate(
 	ctx context.Context,
 	id string,
 	fence uint64,
 ) (Record, error) {
-	record, err := engine.repository.Load(ctx, id)
+	record, err := e.repository.Load(ctx, id)
 	if errors.Is(err, ErrNotFound) {
 		record = Record{
 			ID:                id,
-			Definition:        engine.definition.Name,
-			Version:           engine.definition.Version,
+			Definition:        e.definition.Name,
+			Version:           e.definition.Version,
 			Status:            StatusRunning,
 			CompensationIndex: -1,
-			UpdatedAt:         engine.clock().UTC(),
+			UpdatedAt:         e.clock().UTC(),
 		}
-		record, err = engine.repository.Create(ctx, record, fence)
+		record, err = e.repository.Create(ctx, record, fence)
 	}
 	if err != nil {
-		engine.repositoryFailures.Add(1)
+		e.repositoryFailures.Add(1)
 		return Record{}, fmt.Errorf("saga: load or create: %w", err)
 	}
-	if record.Definition != engine.definition.Name ||
-		record.Version != engine.definition.Version {
+	if record.Definition != e.definition.Name ||
+		record.Version != e.definition.Version {
 		return Record{}, ErrDefinitionMismatch
 	}
 	if err := record.Validate(); err != nil {
 		return Record{}, err
 	}
-	if record.NextStep > len(engine.definition.Steps) ||
-		record.CompensationIndex >= len(engine.definition.Steps) {
+	if record.NextStep > len(e.definition.Steps) ||
+		record.CompensationIndex >= len(e.definition.Steps) {
 		return Record{}, fmt.Errorf("%w: step position", ErrInvalidOption)
 	}
 	return record, nil
 }
 
-func (engine *Engine) save(
+func (e *Engine) save(
 	ctx context.Context,
 	record Record,
 	fence uint64,
 ) (Record, error) {
 	expected := record.Revision
-	record.UpdatedAt = engine.clock().UTC()
-	saved, err := engine.repository.Save(ctx, record, expected, fence)
+	record.UpdatedAt = e.clock().UTC()
+	saved, err := e.repository.Save(ctx, record, expected, fence)
 	if err != nil {
-		engine.repositoryFailures.Add(1)
+		e.repositoryFailures.Add(1)
 		return Record{}, fmt.Errorf("saga: save: %w", err)
 	}
 	return saved, nil
 }
 
-func (engine *Engine) invoke(
+func (e *Engine) invoke(
 	ctx context.Context,
 	handler Handler,
 	invocation Invocation,
 ) (err error) {
-	stepContext, cancel := context.WithTimeout(ctx, engine.stepTimeout)
+	stepContext, cancel := context.WithTimeout(ctx, e.stepTimeout)
 	defer cancel()
 	stepContext = coordination.WithFence(stepContext, invocation.Fence)
 	defer func() {
@@ -412,7 +412,7 @@ func (engine *Engine) invoke(
 	return err
 }
 
-func (engine *Engine) invocation(
+func (e *Engine) invocation(
 	record Record,
 	step string,
 	index int,
@@ -438,8 +438,8 @@ func (engine *Engine) invocation(
 	}
 }
 
-func (engine *Engine) failureReason(err error) string {
-	reason := engine.classify(err)
+func (e *Engine) failureReason(err error) string {
+	reason := e.classify(err)
 	if !validIdentity(reason, maxIdentityBytes) {
 		return "internal"
 	}

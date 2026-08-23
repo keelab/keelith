@@ -25,8 +25,8 @@ type Option interface {
 
 type optionFunc func(*Error)
 
-func (function optionFunc) apply(target *Error) {
-	function(target)
+func (fn optionFunc) apply(target *Error) {
+	fn(target)
 }
 
 // WithMessage replaces the human-facing message.

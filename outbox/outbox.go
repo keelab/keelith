@@ -89,12 +89,12 @@ type ClaimRequest struct {
 }
 
 // Validate rejects unbounded or already-expired claims.
-func (request ClaimRequest) Validate(now time.Time) error {
+func (r ClaimRequest) Validate(now time.Time) error {
 	if now.IsZero() ||
-		!validIdentity(request.Owner, maxIDBytes) ||
-		request.Limit <= 0 ||
-		request.Limit > maxClaimLimit ||
-		!request.LeaseUntil.After(now) {
+		!validIdentity(r.Owner, maxIDBytes) ||
+		r.Limit <= 0 ||
+		r.Limit > maxClaimLimit ||
+		!r.LeaseUntil.After(now) {
 		return fmt.Errorf("%w: claim request is malformed", ErrInvalidOption)
 	}
 	return nil

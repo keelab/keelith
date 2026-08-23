@@ -39,8 +39,8 @@ type Response struct {
 }
 
 // Cause returns the original invocation error.
-func (response Response) Cause() error {
-	return response.cause
+func (r Response) Cause() error {
+	return r.cause
 }
 
 // Resolver obtains an operation-specific replacement after a failed call.
@@ -137,16 +137,16 @@ func middlewareFor(resolver Resolver, settings settings) middleware.Middleware {
 			if ctx == nil {
 				return nil, fmt.Errorf("%w: context is nil", ErrInvalidOption)
 			}
-			response, err := next(ctx, request)
+			r, err := next(ctx, request)
 			if err == nil || !settings.classify(err) {
-				return response, err
+				return r, err
 			}
 			if errors.Is(err, context.Canceled) {
-				return response, err
+				return r, err
 			}
 			target, ok := operation.FromContext(ctx)
 			if !ok {
-				return response, errors.Join(err, ErrMissingOperation)
+				return r, errors.Join(err, ErrMissingOperation)
 			}
 			replacement, resolveErr := resolver.Resolve(
 				ctx,
@@ -155,10 +155,10 @@ func middlewareFor(resolver Resolver, settings settings) middleware.Middleware {
 				err,
 			)
 			if resolveErr != nil {
-				return response, errors.Join(err, fmt.Errorf("fallback resolver: %w", resolveErr))
+				return r, errors.Join(err, fmt.Errorf("fallback resolver: %w", resolveErr))
 			}
 			if !replacement.Found {
-				return response, err
+				return r, err
 			}
 			if settings.recorder != nil {
 				settings.recorder.Record(Event{

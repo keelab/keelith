@@ -321,10 +321,10 @@ func validProvider(provider string) bool {
 	if provider == "" || strings.ToLower(provider) != provider {
 		return false
 	}
-	for index, character := range provider {
-		if character >= 'a' && character <= 'z' ||
-			index > 0 && character >= '0' && character <= '9' ||
-			index > 0 && (character == '-' || character == '_') {
+	for index, r := range provider {
+		if r >= 'a' && r <= 'z' ||
+			index > 0 && r >= '0' && r <= '9' ||
+			index > 0 && (r == '-' || r == '_') {
 			continue
 		}
 		return false
@@ -343,8 +343,8 @@ func validKey(key string) bool {
 		if segment == "" || segment == "." || segment == ".." {
 			return false
 		}
-		for _, character := range segment {
-			if unicode.IsControl(character) {
+		for _, r := range segment {
+			if unicode.IsControl(r) {
 				return false
 			}
 		}

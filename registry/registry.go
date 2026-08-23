@@ -266,8 +266,8 @@ func validName(name string) bool {
 		return false
 	}
 
-	for _, character := range name {
-		if unicode.IsControl(character) {
+	for _, r := range name {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

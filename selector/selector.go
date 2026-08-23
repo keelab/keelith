@@ -303,8 +303,8 @@ func validPreferenceKey(value string) bool {
 	if !validPreferenceValue(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsSpace(character) {
+	for _, r := range value {
+		if unicode.IsSpace(r) {
 			return false
 		}
 	}
@@ -315,8 +315,8 @@ func validPreferenceValue(value string) bool {
 	if value == "" || strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

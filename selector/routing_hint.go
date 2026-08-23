@@ -37,8 +37,8 @@ func NewRoutingHint(key string) (RoutingHint, error) {
 			ErrRoutingHint,
 		)
 	}
-	for _, character := range key {
-		if unicode.IsControl(character) {
+	for _, r := range key {
+		if unicode.IsControl(r) {
 			return RoutingHint{}, fmt.Errorf(
 				"%w: key contains a control character",
 				ErrRoutingHint,

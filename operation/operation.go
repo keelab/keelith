@@ -121,8 +121,8 @@ func validTransport(transport string) bool {
 		return false
 	}
 	for index := 1; index < len(transport); index++ {
-		character := transport[index]
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '+' || character == '-' || character == '.' {
+		ch := transport[index]
+		if ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '+' || ch == '-' || ch == '.' {
 			continue
 		}
 		return false
@@ -137,8 +137,8 @@ func validComponent(component string) bool {
 	if strings.TrimSpace(component) != component {
 		return false
 	}
-	for _, character := range component {
-		if unicode.IsControl(character) {
+	for _, r := range component {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

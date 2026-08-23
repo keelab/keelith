@@ -13,7 +13,7 @@ import (
 	grpc "google.golang.org/grpc"
 )
 
-const ContinuationServiceKeelithGeneratorProtocol = "v20"
+const ContinuationServiceKeelithGeneratorProtocol = "v1"
 
 // ContinuationServiceKeelithServer is the transport-neutral implementation contract.
 type ContinuationServiceKeelithServer interface {

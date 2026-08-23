@@ -1,6 +1,6 @@
 {
   "schemaVersion": "v3",
-  "generatorProtocol": "v20",
+  "generatorProtocol": "v1",
   "source": "continuation/v1/protocol.proto",
   "package": "keelith.continuation.v1",
   "goImportPath": "github.com/keelab/keelith/api/continuation/v1",

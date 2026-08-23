@@ -12,23 +12,26 @@ import (
 )
 
 // ProtocolVersion identifies the generated adapter contract.
-const ProtocolVersion = "v20"
+const ProtocolVersion = "v1"
 
 var (
-	contextPackage     = protogen.GoImportPath("context")
-	fmtPackage         = protogen.GoImportPath("fmt")
-	ioPackage          = protogen.GoImportPath("io")
-	timePackage        = protogen.GoImportPath("time")
-	protoPackage       = protogen.GoImportPath("google.golang.org/protobuf/proto")
-	grpcPackage        = protogen.GoImportPath("google.golang.org/grpc")
-	errorsPackage      = protogen.GoImportPath("github.com/keelab/keelith/errors")
-	middlewarePackage  = protogen.GoImportPath("github.com/keelab/keelith/middleware")
-	operationPackage   = protogen.GoImportPath("github.com/keelab/keelith/operation")
-	servicePackage     = protogen.GoImportPath("github.com/keelab/keelith/service")
-	idempotencyPackage = protogen.GoImportPath("github.com/keelab/keelith/governance/idempotency")
-	httpPackage        = protogen.GoImportPath("github.com/keelab/keelith/transport/http")
-	ssePackage         = protogen.GoImportPath("github.com/keelab/keelith/transport/sse")
-	hertzPackage       = protogen.GoImportPath("github.com/keelab/keelith/x/transport/hertz")
+	contextPackage          = protogen.GoImportPath("context")
+	fmtPackage              = protogen.GoImportPath("fmt")
+	ioPackage               = protogen.GoImportPath("io")
+	timePackage             = protogen.GoImportPath("time")
+	protoPackage            = protogen.GoImportPath("google.golang.org/protobuf/proto")
+	grpcPackage             = protogen.GoImportPath("google.golang.org/grpc")
+	errorsPackage           = protogen.GoImportPath("github.com/keelab/keelith/errors")
+	middlewarePackage       = protogen.GoImportPath("github.com/keelab/keelith/middleware")
+	operationPackage        = protogen.GoImportPath("github.com/keelab/keelith/operation")
+	servicePackage          = protogen.GoImportPath("github.com/keelab/keelith/service")
+	idempotencyPackage      = protogen.GoImportPath("github.com/keelab/keelith/governance/idempotency")
+	httpPackage             = protogen.GoImportPath("github.com/keelab/keelith/transport/http")
+	continuationHTTPPackage = protogen.GoImportPath(
+		"github.com/keelab/keelith/transport/http/continuation",
+	)
+	ssePackage   = protogen.GoImportPath("github.com/keelab/keelith/transport/sse")
+	hertzPackage = protogen.GoImportPath("github.com/keelab/keelith/x/transport/hertz")
 )
 
 // Options controls opt-in generated adapters.

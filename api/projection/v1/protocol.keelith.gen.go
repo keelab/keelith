@@ -13,7 +13,7 @@ import (
 	grpc "google.golang.org/grpc"
 )
 
-const ProjectionServiceKeelithGeneratorProtocol = "v20"
+const ProjectionServiceKeelithGeneratorProtocol = "v1"
 
 // ProjectionServiceKeelithServer is the transport-neutral implementation contract.
 type ProjectionServiceKeelithServer interface {

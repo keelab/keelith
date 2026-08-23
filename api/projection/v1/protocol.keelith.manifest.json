@@ -1,6 +1,6 @@
 {
   "schemaVersion": "v3",
-  "generatorProtocol": "v20",
+  "generatorProtocol": "v1",
   "source": "projection/v1/protocol.proto",
   "package": "keelith.projection.v1",
   "goImportPath": "github.com/keelab/keelith/api/projection/v1",

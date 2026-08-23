@@ -178,7 +178,7 @@ func generateContinuationHelper(
 		"func ", callName, "(",
 		"ctx ", output.QualifiedGoIdent(contextPackage.Ident("Context")), ", ",
 		"client *", output.QualifiedGoIdent(
-			httpPackage.Ident("ContinuationClient"),
+			continuationHTTPPackage.Ident("ContinuationClient"),
 		), ", ",
 		"callID ", output.QualifiedGoIdent(
 			continuationPackage.Ident("CallID"),

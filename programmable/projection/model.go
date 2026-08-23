@@ -434,9 +434,9 @@ func validFingerprint(value string) bool {
 	if len(value) != fingerprintBytes {
 		return false
 	}
-	for _, character := range value {
-		if character >= '0' && character <= '9' ||
-			character >= 'a' && character <= 'f' {
+	for _, r := range value {
+		if r >= '0' && r <= '9' ||
+			r >= 'a' && r <= 'f' {
 			continue
 		}
 		return false
@@ -451,8 +451,8 @@ func validIdentity(value string, maxBytes int) bool {
 		strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

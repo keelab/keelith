@@ -21,9 +21,9 @@ type Option func(*Store)
 
 // WithClock replaces the Store's checkpoint clock.
 func WithClock(clock func() time.Time) Option {
-	return func(store *Store) {
+	return func(s *Store) {
 		if clock != nil {
-			store.now = clock
+			s.now = clock
 		}
 	}
 }
@@ -48,7 +48,7 @@ type state struct {
 
 // New creates an empty Store.
 func New(options ...Option) *Store {
-	store := &Store{
+	s := &Store{
 		states: make(map[projection.ProjectionID]state),
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -56,18 +56,18 @@ func New(options ...Option) *Store {
 	}
 	for _, option := range options {
 		if option != nil {
-			option(store)
+			option(s)
 		}
 	}
-	return store
+	return s
 }
 
 // BeginSnapshot creates an isolated empty staging generation.
-func (store *Store) BeginSnapshot(
+func (s *Store) BeginSnapshot(
 	ctx context.Context,
 	schema projection.Schema,
 ) (projection.SnapshotTxn, error) {
-	if store == nil {
+	if s == nil {
 		return nil, errors.New("projection memory: store is nil")
 	}
 	if err := validateContext(ctx); err != nil {
@@ -77,9 +77,9 @@ func (store *Store) BeginSnapshot(
 		return nil, err
 	}
 
-	store.mu.RLock()
-	current, exists := store.states[schema.ID]
-	store.mu.RUnlock()
+	s.mu.RLock()
+	current, exists := s.states[schema.ID]
+	s.mu.RUnlock()
 	if exists {
 		if err := compatibleSchema(current.schema, schema); err != nil {
 			return nil, err
@@ -90,7 +90,7 @@ func (store *Store) BeginSnapshot(
 		baseGeneration = current.generation
 	}
 	return &snapshotTxn{
-		store:          store,
+		store:          s,
 		schema:         schema,
 		baseGeneration: baseGeneration,
 		values:         make(map[string][]byte),
@@ -98,11 +98,11 @@ func (store *Store) BeginSnapshot(
 }
 
 // ApplyDelta atomically advances rows and their durable checkpoint.
-func (store *Store) ApplyDelta(
+func (s *Store) ApplyDelta(
 	ctx context.Context,
 	batch projection.DeltaBatch,
 ) error {
-	if store == nil {
+	if s == nil {
 		return errors.New("projection memory: store is nil")
 	}
 	if err := validateContext(ctx); err != nil {
@@ -114,9 +114,9 @@ func (store *Store) ApplyDelta(
 	batch = batch.Clone()
 	digest := deltaDigest(batch)
 
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	current, exists := store.states[batch.Schema.ID]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, exists := s.states[batch.Schema.ID]
 	if !exists {
 		return fmt.Errorf(
 			"%w: %q",
@@ -158,12 +158,12 @@ func (store *Store) ApplyDelta(
 			return projection.ErrInvalidMutation
 		}
 	}
-	store.states[batch.Schema.ID] = state{
+	s.states[batch.Schema.ID] = state{
 		schema:       batch.Schema,
 		cursor:       batch.Cursor,
 		generation:   current.generation + 1,
 		sourceTime:   batch.SourceTime,
-		appliedAt:    store.now().UTC(),
+		appliedAt:    s.now().UTC(),
 		values:       nextValues,
 		lastDelta:    digest,
 		hasLastDelta: true,
@@ -172,12 +172,12 @@ func (store *Store) ApplyDelta(
 }
 
 // Get returns an independent visible value copy.
-func (store *Store) Get(
+func (s *Store) Get(
 	ctx context.Context,
 	id projection.ProjectionID,
 	key []byte,
 ) ([]byte, bool, error) {
-	if store == nil {
+	if s == nil {
 		return nil, false, errors.New("projection memory: store is nil")
 	}
 	if err := validateContext(ctx); err != nil {
@@ -189,24 +189,24 @@ func (store *Store) Get(
 	if err := projection.Upsert(key, nil).Validate(); err != nil {
 		return nil, false, err
 	}
-	store.mu.RLock()
-	current, exists := store.states[id]
+	s.mu.RLock()
+	current, exists := s.states[id]
 	if !exists {
-		store.mu.RUnlock()
+		s.mu.RUnlock()
 		return nil, false, nil
 	}
 	value, exists := current.values[string(key)]
 	result := append([]byte(nil), value...)
-	store.mu.RUnlock()
+	s.mu.RUnlock()
 	return result, exists, nil
 }
 
 // Checkpoint returns the current visible generation and freshness watermark.
-func (store *Store) Checkpoint(
+func (s *Store) Checkpoint(
 	ctx context.Context,
 	id projection.ProjectionID,
 ) (projection.Checkpoint, bool, error) {
-	if store == nil {
+	if s == nil {
 		return projection.Checkpoint{}, false,
 			errors.New("projection memory: store is nil")
 	}
@@ -216,9 +216,9 @@ func (store *Store) Checkpoint(
 	if err := id.Validate(); err != nil {
 		return projection.Checkpoint{}, false, err
 	}
-	store.mu.RLock()
-	current, exists := store.states[id]
-	store.mu.RUnlock()
+	s.mu.RLock()
+	current, exists := s.states[id]
+	s.mu.RUnlock()
 	if !exists {
 		return projection.Checkpoint{}, false, nil
 	}

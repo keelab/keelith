@@ -180,12 +180,12 @@ func normalizeKey(key string) (string, error) {
 		return "", fmt.Errorf("%w: key is empty", ErrInvalidKey)
 	}
 	normalized := strings.ToLower(key)
-	for _, character := range normalized {
-		valid := character >= 'a' && character <= 'z' ||
-			character >= '0' && character <= '9' ||
-			character == '-' ||
-			character == '_' ||
-			character == '.'
+	for _, r := range normalized {
+		valid := r >= 'a' && r <= 'z' ||
+			r >= '0' && r <= '9' ||
+			r == '-' ||
+			r == '_' ||
+			r == '.'
 		if !valid {
 			return "", fmt.Errorf("%w: %q", ErrInvalidKey, key)
 		}

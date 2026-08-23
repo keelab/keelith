@@ -409,11 +409,11 @@ func (publisher *fakePublisher) Publish(
 
 type publisherFunc func(context.Context, outbox.Message) error
 
-func (function publisherFunc) Publish(
+func (fn publisherFunc) Publish(
 	ctx context.Context,
 	message outbox.Message,
 ) error {
-	return function(ctx, message)
+	return fn(ctx, message)
 }
 
 func eventually(t *testing.T, condition func() bool) {

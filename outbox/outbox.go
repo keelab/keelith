@@ -43,17 +43,17 @@ type Message struct {
 }
 
 // Validate enforces bounded broker-neutral message identity and payload.
-func (message Message) Validate() error {
-	if !validIdentity(message.ID, maxIDBytes) ||
-		!validIdentity(message.Destination, maxDestinationBytes) ||
-		message.Attempts < 0 ||
-		len(message.Key) > maxKeyBytes ||
-		len(message.Payload) > maxPayloadBytes ||
-		len(message.Headers) > maxHeaders {
+func (m Message) Validate() error {
+	if !validIdentity(m.ID, maxIDBytes) ||
+		!validIdentity(m.Destination, maxDestinationBytes) ||
+		m.Attempts < 0 ||
+		len(m.Key) > maxKeyBytes ||
+		len(m.Payload) > maxPayloadBytes ||
+		len(m.Headers) > maxHeaders {
 		return fmt.Errorf("%w: message fields are malformed", ErrInvalidOption)
 	}
 	headerBytes := 0
-	for key, value := range message.Headers {
+	for key, value := range m.Headers {
 		if !validIdentity(key, maxIDBytes) {
 			return fmt.Errorf("%w: header key is malformed", ErrInvalidOption)
 		}
@@ -66,18 +66,18 @@ func (message Message) Validate() error {
 }
 
 // Clone returns a deep independent message.
-func (message Message) Clone() Message {
-	headers := make(map[string][]byte, len(message.Headers))
-	for key, value := range message.Headers {
+func (m Message) Clone() Message {
+	headers := make(map[string][]byte, len(m.Headers))
+	for key, value := range m.Headers {
 		headers[key] = append([]byte(nil), value...)
 	}
 	return Message{
-		ID:          message.ID,
-		Destination: message.Destination,
-		Key:         append([]byte(nil), message.Key...),
-		Payload:     append([]byte(nil), message.Payload...),
+		ID:          m.ID,
+		Destination: m.Destination,
+		Key:         append([]byte(nil), m.Key...),
+		Payload:     append([]byte(nil), m.Payload...),
 		Headers:     headers,
-		Attempts:    message.Attempts,
+		Attempts:    m.Attempts,
 	}
 }
 
@@ -142,8 +142,8 @@ func validIdentity(value string, maxBytes int) bool {
 		!utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

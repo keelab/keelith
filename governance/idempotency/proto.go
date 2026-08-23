@@ -94,11 +94,11 @@ func nilProto(message proto.Message) bool {
 }
 
 func validMetadataKey(value string) bool {
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= 'a' && character <= 'z':
-		case character >= '0' && character <= '9':
-		case character == '-' || character == '_' || character == '.':
+		case r >= 'a' && r <= 'z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '.':
 		default:
 			return false
 		}

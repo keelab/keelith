@@ -278,12 +278,12 @@ func validNamespace(value string) bool {
 	if value == "" || len(value) > maximumNamespaceBytes {
 		return false
 	}
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= 'a' && character <= 'z':
-		case character >= 'A' && character <= 'Z':
-		case character >= '0' && character <= '9':
-		case character == '-' || character == '_' || character == '.' || character == '/':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '.' || r == '/':
 		default:
 			return false
 		}
@@ -301,10 +301,10 @@ func validFingerprint(value string) bool {
 	if len(value) != sha256.Size*2 {
 		return false
 	}
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= '0' && character <= '9':
-		case character >= 'a' && character <= 'f':
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'f':
 		default:
 			return false
 		}
@@ -316,12 +316,12 @@ func validOwner(value string) bool {
 	if value == "" || len(value) > maximumOwnerBytes {
 		return false
 	}
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= 'a' && character <= 'z':
-		case character >= 'A' && character <= 'Z':
-		case character >= '0' && character <= '9':
-		case character == '-' || character == '_':
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_':
 		default:
 			return false
 		}
@@ -330,8 +330,8 @@ func validOwner(value string) bool {
 }
 
 func containsControl(value string) bool {
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return true
 		}
 	}

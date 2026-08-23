@@ -114,17 +114,17 @@ func NewStore(definition Definition) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &Store{}
-	store.current.Store(&snapshot)
-	return store, nil
+	s := &Store{}
+	s.current.Store(&snapshot)
+	return s, nil
 }
 
 // Update atomically publishes a new revision. A duplicate revision is ignored.
-func (store *Store) Update(definition Definition) (bool, error) {
-	store.updateMu.Lock()
-	defer store.updateMu.Unlock()
+func (s *Store) Update(definition Definition) (bool, error) {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
 
-	current := store.current.Load()
+	current := s.current.Load()
 	if current != nil && current.revision == definition.Revision {
 		return false, nil
 	}
@@ -132,26 +132,26 @@ func (store *Store) Update(definition Definition) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	store.current.Store(&next)
+	s.current.Store(&next)
 	return true, nil
 }
 
 // Resolve returns the complete policy for target.
-func (store *Store) Resolve(target operation.Operation) Policy {
-	return store.current.Load().Resolve(target)
+func (s *Store) Resolve(target operation.Operation) Policy {
+	return s.current.Load().Resolve(target)
 }
 
 // Current returns the current immutable Snapshot.
-func (store *Store) Current() Snapshot {
-	return *store.current.Load()
+func (s *Store) Current() Snapshot {
+	return *s.current.Load()
 }
 
 // Describe returns revision and rule cardinality without policy values.
-func (store *Store) Describe() Description {
-	if store == nil {
+func (s *Store) Describe() Description {
+	if s == nil {
 		return Description{}
 	}
-	current := store.current.Load()
+	current := s.current.Load()
 	if current == nil {
 		return Description{}
 	}
@@ -332,8 +332,8 @@ func validIdentity(value string) bool {
 	if value == "" || strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

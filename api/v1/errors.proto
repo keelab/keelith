@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package keelith.v1;
+
+import "v1/annotations.proto";
+
+option go_package = "github.com/keelab/keelith/api/v1;keelithv1";
+
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  ERROR_REASON_VALIDATION_FAILED = 1 [(error_code) = 400];
+  ERROR_REASON_NOT_FOUND = 2 [(error_code) = 404];
+  ERROR_REASON_CONFLICT = 3 [(error_code) = 409];
+  ERROR_REASON_INTERNAL = 4 [(error_code) = 500];
+}

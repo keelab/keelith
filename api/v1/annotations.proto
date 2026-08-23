@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package keelith.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/keelab/keelith/api/v1;keelithv1";
+
+enum ServiceDependencyBinding {
+  SERVICE_DEPENDENCY_BINDING_UNSPECIFIED = 0;
+  SERVICE_DEPENDENCY_BINDING_REMOTE = 1;
+  SERVICE_DEPENDENCY_BINDING_AUTO = 2;
+  SERVICE_DEPENDENCY_BINDING_LOCAL = 3;
+}
+
+message ServiceDependency {
+  string service = 1;
+  string transport = 2;
+  string reason = 3;
+  ServiceDependencyBinding binding = 4;
+}
+
+// IdempotencyRule explicitly enables fenced request deduplication and bounded
+// result replay for one unary command.
+message IdempotencyRule {
+  string namespace = 1;
+  string metadata_key = 2;
+  int64 processing_ttl_seconds = 3;
+  int64 result_ttl_seconds = 4;
+}
+
+// ContinuationRule enables one unary method as a durable continuable call.
+message ContinuationRule {
+  string machine_version = 1;
+  int64 inline_budget_ms = 2;
+  int64 retention_seconds = 3;
+  int64 max_payload_bytes = 4;
+}
+
+// ProjectionRule declares one top-level message as a replicated projection.
+message ProjectionRule {
+  string id = 1;
+  repeated string key_fields = 2;
+  uint32 schema_major = 3;
+  repeated ProjectionMigration migrations = 4;
+}
+
+enum ProjectionDropPolicy {
+  PROJECTION_DROP_POLICY_UNSPECIFIED = 0;
+  PROJECTION_DROP_POLICY_ALLOW = 1;
+}
+
+// ProjectionFieldMigration explicitly maps, defaults, or drops one field.
+message ProjectionFieldMigration {
+  string previous_field = 1;
+  string current_field = 2;
+  optional string default_value = 3;
+  ProjectionDropPolicy drop_policy = 4;
+}
+
+// ProjectionMigration declares one historical concrete protobuf message that
+// can be directly upcast to the current projection message.
+message ProjectionMigration {
+  string previous_fingerprint = 1;
+  string previous_message = 2;
+  uint32 previous_schema_major = 3;
+  repeated ProjectionFieldMigration fields = 4;
+  repeated string previous_key_fields = 5;
+}
+
+extend google.protobuf.MethodOptions {
+  string error_reason = 51002;
+  repeated ServiceDependency dependency = 51004;
+  IdempotencyRule idempotency = 51006;
+  ContinuationRule continuation = 51007;
+}
+
+extend google.protobuf.MessageOptions {
+  ProjectionRule projection = 51008;
+}
+
+extend google.protobuf.EnumValueOptions {
+  // error_code maps one stable enum reason to an HTTP-compatible application
+  // code. protoc-gen-go-keelith generates constructors only for annotated,
+  // non-zero enum values.
+  int32 error_code = 51005;
+}

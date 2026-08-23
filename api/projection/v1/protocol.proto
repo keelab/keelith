@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package keelith.projection.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/keelab/keelith/api/projection/v1;projectionv1";
+
+// ProjectionService is the additive shard-aware projection protocol. A
+// subscription is always scoped to exactly one shard; callers must opt in to
+// fan-out by opening more than one stream.
+service ProjectionService {
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}
+
+message Schema {
+  string id = 1;
+  string fingerprint = 2;
+  string key_fingerprint = 3;
+  repeated string compatible_fingerprints = 4;
+}
+
+message Shard {
+  string id = 1;
+  uint64 generation = 2;
+}
+
+message SubscribeRequest {
+  Schema schema = 1;
+  string after = 2;
+  bool force_snapshot = 3;
+  Shard shard = 4;
+}
+
+message Mutation {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_UPSERT = 1;
+    KIND_DELETE = 2;
+  }
+
+  Kind kind = 1;
+  bytes key = 2;
+  bytes value = 3;
+}
+
+message SnapshotBegin {
+  Schema schema = 1;
+  Shard shard = 2;
+}
+
+message SnapshotChunk {
+  repeated Mutation mutations = 1;
+}
+
+message SnapshotEnd {
+  string cursor = 1;
+  google.protobuf.Timestamp source_time = 2;
+  Shard shard = 3;
+}
+
+message Delta {
+  Schema schema = 1;
+  string previous = 2;
+  string cursor = 3;
+  google.protobuf.Timestamp source_time = 4;
+  repeated Mutation mutations = 5;
+  Shard shard = 6;
+}
+
+message Heartbeat {
+  string cursor = 1;
+  google.protobuf.Timestamp source_time = 2;
+  Shard shard = 3;
+}
+
+message Gap {
+  string requested = 1;
+  string floor = 2;
+  Shard shard = 3;
+}
+
+message SubscribeResponse {
+  oneof body {
+    SnapshotBegin snapshot_begin = 1;
+    SnapshotChunk snapshot_chunk = 2;
+    SnapshotEnd snapshot_end = 3;
+    Delta delta = 4;
+    Heartbeat heartbeat = 5;
+    Gap gap = 6;
+  }
+}

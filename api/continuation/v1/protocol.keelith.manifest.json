@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "v3",
+  "generatorProtocol": "v20",
+  "source": "continuation/v1/protocol.proto",
+  "package": "keelith.continuation.v1",
+  "goImportPath": "github.com/keelab/keelith/api/continuation/v1",
+  "goPackage": "continuationv1",
+  "services": [
+    {
+      "name": "keelith.continuation.v1.ContinuationService",
+      "goName": "ContinuationService",
+      "methods": [
+        {
+          "name": "Start",
+          "operation": "/keelith.continuation.v1.ContinuationService/Start",
+          "kind": "unary",
+          "input": "keelith.continuation.v1.StartRequest",
+          "output": "keelith.continuation.v1.StartResponse"
+        },
+        {
+          "name": "Poll",
+          "operation": "/keelith.continuation.v1.ContinuationService/Poll",
+          "kind": "unary",
+          "input": "keelith.continuation.v1.PollRequest",
+          "output": "keelith.continuation.v1.PollResponse"
+        },
+        {
+          "name": "Attach",
+          "operation": "/keelith.continuation.v1.ContinuationService/Attach",
+          "kind": "server-stream",
+          "input": "keelith.continuation.v1.AttachRequest",
+          "output": "keelith.continuation.v1.AttachResponse"
+        },
+        {
+          "name": "Signal",
+          "operation": "/keelith.continuation.v1.ContinuationService/Signal",
+          "kind": "unary",
+          "input": "keelith.continuation.v1.SignalRequest",
+          "output": "keelith.continuation.v1.SignalResponse"
+        },
+        {
+          "name": "Cancel",
+          "operation": "/keelith.continuation.v1.ContinuationService/Cancel",
+          "kind": "unary",
+          "input": "keelith.continuation.v1.CancelRequest",
+          "output": "keelith.continuation.v1.CancelResponse"
+        },
+        {
+          "name": "GetHistory",
+          "operation": "/keelith.continuation.v1.ContinuationService/GetHistory",
+          "kind": "unary",
+          "input": "keelith.continuation.v1.GetHistoryRequest",
+          "output": "keelith.continuation.v1.GetHistoryResponse"
+        }
+      ]
+    }
+  ],
+  "listeners": [
+    {
+      "transport": "grpc",
+      "service": "keelith.continuation.v1.ContinuationService"
+    }
+  ]
+}

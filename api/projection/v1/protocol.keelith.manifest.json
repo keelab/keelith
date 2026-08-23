@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "v3",
+  "generatorProtocol": "v20",
+  "source": "projection/v1/protocol.proto",
+  "package": "keelith.projection.v1",
+  "goImportPath": "github.com/keelab/keelith/api/projection/v1",
+  "goPackage": "projectionv1",
+  "services": [
+    {
+      "name": "keelith.projection.v1.ProjectionService",
+      "goName": "ProjectionService",
+      "methods": [
+        {
+          "name": "Subscribe",
+          "operation": "/keelith.projection.v1.ProjectionService/Subscribe",
+          "kind": "server-stream",
+          "input": "keelith.projection.v1.SubscribeRequest",
+          "output": "keelith.projection.v1.SubscribeResponse"
+        }
+      ]
+    }
+  ],
+  "listeners": [
+    {
+      "transport": "grpc",
+      "service": "keelith.projection.v1.ProjectionService"
+    }
+  ]
+}

@@ -237,7 +237,6 @@ func generateManifest(
 	if err != nil {
 		return fmt.Errorf("generator: encode contract manifest: %w", err)
 	}
-	payload = append(payload, '\n')
 	output := plugin.NewGeneratedFile(
 		file.GeneratedFilenamePrefix+".keelith.manifest.json",
 		"",

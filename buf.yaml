@@ -1,0 +1,13 @@
+version: v2
+modules:
+  - path: api
+    excludes:
+      - api/baseline
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+breaking:
+  use:
+    - FILE

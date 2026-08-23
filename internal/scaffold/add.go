@@ -414,15 +414,15 @@ func protoBodyLine(method string) string {
 
 func snakeCase(value string) string {
 	var output strings.Builder
-	for index, character := range value {
-		if unicode.IsUpper(character) {
+	for index, r := range value {
+		if unicode.IsUpper(r) {
 			if index > 0 {
 				output.WriteByte('_')
 			}
-			output.WriteRune(unicode.ToLower(character))
+			output.WriteRune(unicode.ToLower(r))
 			continue
 		}
-		output.WriteRune(character)
+		output.WriteRune(r)
 	}
 	return output.String()
 }
@@ -557,11 +557,11 @@ func protoSourceOffset(content []byte, position *protoast.SourcePos) (int, error
 	}
 	line := 1
 	column := 1
-	for offset, character := range string(content) {
+	for offset, r := range string(content) {
 		if line == position.Line && column == position.Col {
 			return offset, nil
 		}
-		switch character {
+		switch r {
 		case '\n':
 			line++
 			column = 1

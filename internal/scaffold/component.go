@@ -677,8 +677,8 @@ func validIdempotencyPrefix(value string) bool {
 	if value == "" || len(value) > 128 || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}
@@ -1585,7 +1585,7 @@ func renderInboxHandler(name string, module string) ([]byte, error) {
 			"\treturn &Handler{Dependencies: dependencies}, nil\n" +
 			"}\n\n" +
 			"// Handle applies business SQL using the Inbox-owned transaction.\n" +
-			"func (handler *Handler) Handle(\n" +
+			"func (_ *Handler) Handle(\n" +
 			"\t_ context.Context,\n" +
 			"\t_ *sql.Tx,\n" +
 			"\t_ worker.Message,\n" +
@@ -1868,7 +1868,7 @@ func renderKafkaConsumerHandler(name string, module string) ([]byte, error) {
 			"\treturn &Handler{Dependencies: dependencies}, nil\n" +
 			"}\n\n" +
 			"// Handle processes one delivery and returns an explicit disposition.\n" +
-			"func (handler *Handler) Handle(_ context.Context, _ worker.Message) worker.Result {\n" +
+			"func (_ *Handler) Handle(_ context.Context, _ worker.Message) worker.Result {\n" +
 			"\treturn worker.Nack(ErrNotImplemented)\n" +
 			"}\n",
 	)
@@ -2276,7 +2276,7 @@ func renderCronJobHandler(name string, module string) ([]byte, error) {
 			"\treturn &Handler{Dependencies: dependencies}, nil\n" +
 			"}\n\n" +
 			"// Handle processes one execution and returns an explicit disposition.\n" +
-			"func (handler *Handler) Handle(_ context.Context, _ worker.Execution) worker.Result {\n" +
+			"func (_ *Handler) Handle(_ context.Context, _ worker.Execution) worker.Result {\n" +
 			"\treturn worker.Nack(ErrNotImplemented)\n" +
 			"}\n",
 	)
@@ -3190,16 +3190,16 @@ func componentPriority(kind string) int {
 func exportedComponentName(name string) string {
 	var result strings.Builder
 	upper := true
-	for _, character := range name {
-		if character == '-' {
+	for _, r := range name {
+		if r == '-' {
 			upper = true
 			continue
 		}
 		if upper {
-			character = unicode.ToUpper(character)
+			r = unicode.ToUpper(r)
 			upper = false
 		}
-		result.WriteRune(character)
+		result.WriteRune(r)
 	}
 	return result.String()
 }

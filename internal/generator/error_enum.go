@@ -153,8 +153,8 @@ func errorDefinitionSymbol(
 func screamingSnake(value string) string {
 	var output strings.Builder
 	runes := []rune(value)
-	for index, character := range runes {
-		if unicode.IsUpper(character) && index > 0 {
+	for index, r := range runes {
+		if unicode.IsUpper(r) && index > 0 {
 			previous := runes[index-1]
 			var next rune
 			if index+1 < len(runes) {
@@ -166,7 +166,7 @@ func screamingSnake(value string) string {
 				output.WriteByte('_')
 			}
 		}
-		output.WriteRune(unicode.ToUpper(character))
+		output.WriteRune(unicode.ToUpper(r))
 	}
 	return output.String()
 }
@@ -174,17 +174,17 @@ func screamingSnake(value string) string {
 func protoIdentifierToGo(value string) string {
 	var output strings.Builder
 	upperNext := true
-	for _, character := range value {
-		if character == '_' {
+	for _, r := range value {
+		if r == '_' {
 			upperNext = true
 			continue
 		}
 		if upperNext {
-			output.WriteRune(unicode.ToUpper(character))
+			output.WriteRune(unicode.ToUpper(r))
 			upperNext = false
 			continue
 		}
-		output.WriteRune(unicode.ToLower(character))
+		output.WriteRune(unicode.ToLower(r))
 	}
 	return output.String()
 }

@@ -416,9 +416,9 @@ func validSQLTable(value string, dialect string) bool {
 		if part == "" || len(part) > maxBytes || !utf8.ValidString(part) {
 			return false
 		}
-		for index, character := range part {
-			if character == '_' || unicode.IsLetter(character) ||
-				index > 0 && unicode.IsDigit(character) {
+		for index, r := range part {
+			if r == '_' || unicode.IsLetter(r) ||
+				index > 0 && unicode.IsDigit(r) {
 				continue
 			}
 			return false
@@ -447,11 +447,11 @@ func validKafkaTopic(value string) bool {
 		return false
 	}
 	for index := 0; index < len(value); index++ {
-		character := value[index]
-		if character >= 'a' && character <= 'z' ||
-			character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			character == '.' || character == '_' || character == '-' {
+		r := value[index]
+		if r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '.' || r == '_' || r == '-' {
 			continue
 		}
 		return false
@@ -463,8 +463,8 @@ func validHostPort(value string) bool {
 	host, portText, err := net.SplitHostPort(value)
 	port, portErr := strconv.Atoi(portText)
 	return err == nil && host != "" &&
-		!strings.ContainsFunc(host, func(character rune) bool {
-			return unicode.IsSpace(character) || unicode.IsControl(character)
+		!strings.ContainsFunc(host, func(r rune) bool {
+			return unicode.IsSpace(r) || unicode.IsControl(r)
 		}) && portErr == nil && port >= 1 && port <= 65_535
 }
 

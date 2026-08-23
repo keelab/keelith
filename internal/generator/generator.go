@@ -15,23 +15,20 @@ import (
 const ProtocolVersion = "v20"
 
 var (
-	contextPackage       = protogen.GoImportPath("context")
-	fmtPackage           = protogen.GoImportPath("fmt")
-	ioPackage            = protogen.GoImportPath("io")
-	timePackage          = protogen.GoImportPath("time")
-	protoPackage         = protogen.GoImportPath("google.golang.org/protobuf/proto")
-	grpcPackage          = protogen.GoImportPath("google.golang.org/grpc")
-	errorsPackage        = protogen.GoImportPath("github.com/keelab/keelith/errors")
-	middlewarePackage    = protogen.GoImportPath("github.com/keelab/keelith/middleware")
-	operationPackage     = protogen.GoImportPath("github.com/keelab/keelith/operation")
-	servicePackage       = protogen.GoImportPath("github.com/keelab/keelith/service")
-	idempotencyPackage   = protogen.GoImportPath("github.com/keelab/keelith/governance/idempotency")
-	httpPackage          = protogen.GoImportPath("github.com/keelab/keelith/transport/http")
-	ssePackage           = protogen.GoImportPath("github.com/keelab/keelith/transport/sse")
-	hertzPackage         = protogen.GoImportPath("github.com/keelab/keelith/x/transport/hertz")
-	grpcTransportPackage = protogen.GoImportPath(
-		"github.com/keelab/keelith/transport/grpc",
-	)
+	contextPackage     = protogen.GoImportPath("context")
+	fmtPackage         = protogen.GoImportPath("fmt")
+	ioPackage          = protogen.GoImportPath("io")
+	timePackage        = protogen.GoImportPath("time")
+	protoPackage       = protogen.GoImportPath("google.golang.org/protobuf/proto")
+	grpcPackage        = protogen.GoImportPath("google.golang.org/grpc")
+	errorsPackage      = protogen.GoImportPath("github.com/keelab/keelith/errors")
+	middlewarePackage  = protogen.GoImportPath("github.com/keelab/keelith/middleware")
+	operationPackage   = protogen.GoImportPath("github.com/keelab/keelith/operation")
+	servicePackage     = protogen.GoImportPath("github.com/keelab/keelith/service")
+	idempotencyPackage = protogen.GoImportPath("github.com/keelab/keelith/governance/idempotency")
+	httpPackage        = protogen.GoImportPath("github.com/keelab/keelith/transport/http")
+	ssePackage         = protogen.GoImportPath("github.com/keelab/keelith/transport/sse")
+	hertzPackage       = protogen.GoImportPath("github.com/keelab/keelith/x/transport/hertz")
 )
 
 // Options controls opt-in generated adapters.
@@ -664,7 +661,20 @@ func generateManagedGRPCClient(
 	interfaceName string,
 ) {
 	constructor := "New" + service.GoName + "ManagedGRPCClient"
+	dependencyName := service.GoName + "GRPCDependency"
 	serviceName := string(service.Desc.FullName())
+	output.P(
+		"// ", dependencyName,
+		" exposes the connection required by a lifecycle-managed dependency.",
+	)
+	output.P("type ", dependencyName, " interface {")
+	output.P("Service() string")
+	output.P(
+		"ClientConn() ",
+		output.QualifiedGoIdent(grpcPackage.Ident("ClientConnInterface")),
+	)
+	output.P("}")
+	output.P()
 	output.P(
 		"// ",
 		constructor,
@@ -673,11 +683,7 @@ func generateManagedGRPCClient(
 	output.P(
 		"func ",
 		constructor,
-		"(dependency *",
-		output.QualifiedGoIdent(
-			grpcTransportPackage.Ident("ManagedDependency"),
-		),
-		") (",
+		"(dependency ", dependencyName, ") (",
 		interfaceName,
 		", error) {",
 	)

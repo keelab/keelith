@@ -11,7 +11,7 @@ import (
 	"github.com/keelab/keelith/security/authz"
 )
 
-const continuationAuthorizationService = "keelith.continuation.v2.ContinuationService"
+const continuationAuthorizationService = "keelith.continuation.v1.ContinuationService"
 
 // ServiceRuntime is the transport-neutral durable continuation data plane.
 type ServiceRuntime interface {

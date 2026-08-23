@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package keelith.continuation.v1;
+
+option go_package = "github.com/keelab/keelith/api/continuation/v1;continuationv1";
+
+// ContinuationService exposes authenticated, bounded durable calls over gRPC.
+service ContinuationService {
+  // Start durably creates a call before attempting bounded inline execution.
+  rpc Start(StartRequest) returns (StartResponse);
+  // Poll returns one bounded page after an exclusive frame cursor.
+  rpc Poll(PollRequest) returns (PollResponse);
+  // Attach follows ordered pages until the call terminates or the client leaves.
+  rpc Attach(AttachRequest) returns (stream AttachResponse);
+  // Signal submits one idempotent external command.
+  rpc Signal(SignalRequest) returns (SignalResponse);
+  // Cancel requests cooperative cancellation with an idempotent command.
+  rpc Cancel(CancelRequest) returns (CancelResponse);
+  // GetHistory reads a separately authorized bounded historical page.
+  rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
+}
+
+// CallStatus is the durable continuation lifecycle state.
+enum CallStatus {
+  CALL_STATUS_UNSPECIFIED = 0;
+  CALL_STATUS_ACCEPTED = 1;
+  CALL_STATUS_RUNNING = 2;
+  CALL_STATUS_WAITING = 3;
+  CALL_STATUS_SUSPENDED = 4;
+  CALL_STATUS_CANCEL_REQUESTED = 5;
+  CALL_STATUS_COMPLETED = 6;
+  CALL_STATUS_FAILED = 7;
+  CALL_STATUS_CANCELED = 8;
+  CALL_STATUS_EXPIRED = 9;
+}
+
+// FrameKind identifies one ordered durable observation.
+enum FrameKind {
+  FRAME_KIND_UNSPECIFIED = 0;
+  FRAME_KIND_ACCEPTED = 1;
+  FRAME_KIND_EVENT = 2;
+  FRAME_KIND_WAITING = 3;
+  FRAME_KIND_SIGNAL = 4;
+  FRAME_KIND_SUSPENDED = 5;
+  FRAME_KIND_CANCEL_REQUESTED = 6;
+  FRAME_KIND_COMPLETED = 7;
+  FRAME_KIND_FAILED = 8;
+  FRAME_KIND_CANCELED = 9;
+  FRAME_KIND_EXPIRED = 10;
+  FRAME_KIND_WORKFLOW_CHILD = 11;
+}
+
+enum WorkflowNodeKind {
+  WORKFLOW_NODE_KIND_UNSPECIFIED = 0;
+  WORKFLOW_NODE_KIND_MACHINE = 1;
+  WORKFLOW_NODE_KIND_TIMER = 2;
+  WORKFLOW_NODE_KIND_CHILD = 3;
+  WORKFLOW_NODE_KIND_JOIN = 4;
+}
+
+enum WorkflowNodeStatus {
+  WORKFLOW_NODE_STATUS_UNSPECIFIED = 0;
+  WORKFLOW_NODE_STATUS_PENDING = 1;
+  WORKFLOW_NODE_STATUS_RUNNING = 2;
+  WORKFLOW_NODE_STATUS_WAITING = 3;
+  WORKFLOW_NODE_STATUS_SUCCEEDED = 4;
+  WORKFLOW_NODE_STATUS_FAILED = 5;
+  WORKFLOW_NODE_STATUS_SKIPPED = 6;
+}
+
+// FailureKind is the stable machine-readable failure class attached to gRPC
+// status details. It never contains call identities, payloads, or raw errors.
+enum FailureKind {
+  FAILURE_KIND_UNSPECIFIED = 0;
+  FAILURE_KIND_GAP = 1;
+  FAILURE_KIND_CURSOR = 2;
+  FAILURE_KIND_LEASE = 3;
+  FAILURE_KIND_SCHEMA = 4;
+  FAILURE_KIND_AUTHORIZATION = 5;
+  FAILURE_KIND_TERMINAL = 6;
+  FAILURE_KIND_CONFLICT = 7;
+  FAILURE_KIND_NOT_FOUND = 8;
+  FAILURE_KIND_INVALID_REQUEST = 9;
+  FAILURE_KIND_UNAVAILABLE = 10;
+  FAILURE_KIND_TIMER = 11;
+}
+
+// FailureDetail is attached to non-OK statuses for deterministic recovery.
+message FailureDetail {
+  FailureKind kind = 1;
+  bool retryable = 2;
+  uint64 requested_sequence = 3;
+  uint64 current_sequence = 4;
+  uint64 floor_sequence = 5;
+  string stable_reason = 6;
+  string ready_at = 7;
+}
+
+// StartRequest creates one issuer-qualified durable call resource.
+message StartRequest {
+  string call_id = 1;
+  string operation = 2;
+  bytes input = 3;
+  // workflow_version selects an exact immutable workflow definition. Empty
+  // preserves ordinary continuation Start behavior.
+  string workflow_version = 4;
+}
+
+// PollRequest reads one live page after an exclusive sequence.
+message PollRequest {
+  string call_id = 1;
+  uint64 after = 2;
+  uint32 limit = 3;
+}
+
+// AttachRequest follows live pages after an exclusive sequence.
+message AttachRequest {
+  string call_id = 1;
+  uint64 after = 2;
+  uint32 limit = 3;
+}
+
+// SignalRequest submits one idempotent signal payload.
+message SignalRequest {
+  string call_id = 1;
+  string command_id = 2;
+  bytes payload = 3;
+}
+
+// CancelRequest submits one idempotent cancellation command.
+message CancelRequest {
+  string call_id = 1;
+  string command_id = 2;
+}
+
+// HistoryRequest reads one separately authorized historical page.
+message GetHistoryRequest {
+  string call_id = 1;
+  uint64 after = 2;
+  uint32 limit = 3;
+  bool include_payload = 4;
+  uint32 max_payload_bytes = 5;
+}
+
+// Snapshot is the payload-free durable call state at one revision.
+message Snapshot {
+  string call_id = 1;
+  string operation = 2;
+  CallStatus status = 3;
+  uint64 revision = 4;
+  uint64 fence = 5;
+  uint64 sequence = 6;
+  uint64 frame_floor = 7;
+  bool terminal = 8;
+  string ready_at = 9;
+  Workflow workflow = 10;
+}
+
+message Workflow {
+  string version = 1;
+  string fingerprint = 2;
+  string started_at = 3;
+  repeated WorkflowNode nodes = 4;
+}
+
+message WorkflowNode {
+  string id = 1;
+  WorkflowNodeKind kind = 2;
+  WorkflowNodeStatus status = 3;
+  uint32 attempt = 4;
+  string child_call_id = 5;
+  string ready_at = 6;
+  string failure_class = 7;
+}
+
+// Frame is one immutable, monotonically sequenced observation.
+message Frame {
+  uint64 sequence = 1;
+  FrameKind kind = 2;
+  bytes payload = 3;
+}
+
+// Page is one bounded cursor window and its current payload-free snapshot.
+message Page {
+  Snapshot snapshot = 1;
+  repeated Frame frames = 2;
+  uint64 next_sequence = 3;
+  uint64 frame_floor = 4;
+  bool terminal = 5;
+}
+
+// StartResponse returns the durable snapshot and optional terminal output.
+message StartResponse {
+  Snapshot snapshot = 1;
+  Frame terminal_frame = 2;
+}
+
+// PollResponse contains one bounded live page.
+message PollResponse {
+  Page page = 1;
+}
+
+// AttachResponse contains one bounded live page. Servers may split an
+// underlying page further to honor the configured per-message byte budget.
+message AttachResponse {
+  Page page = 1;
+}
+
+// SignalResponse returns the snapshot after Signal commits.
+message SignalResponse {
+  Snapshot snapshot = 1;
+}
+
+// CancelResponse returns the snapshot after Cancel commits.
+message CancelResponse {
+  Snapshot snapshot = 1;
+}
+
+// GetHistoryResponse contains one bounded historical page.
+message GetHistoryResponse {
+  Page page = 1;
+}

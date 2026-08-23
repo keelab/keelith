@@ -22,20 +22,20 @@ type requestState struct {
 }
 
 // Origin returns the browser Origin header for application-level auditing.
-func (request Request) Origin() string {
-	if request.state == nil || request.state.raw == nil {
+func (r Request) Origin() string {
+	if r.state == nil || r.state.raw == nil {
 		return ""
 	}
-	return request.state.raw.Header.Get("Origin")
+	return r.state.raw.Header.Get("Origin")
 }
 
 // RequestedSubprotocols returns a bounded snapshot of client offers.
-func (request Request) RequestedSubprotocols() []string {
-	if request.state == nil || request.state.raw == nil {
+func (r Request) RequestedSubprotocols() []string {
+	if r.state == nil || r.state.raw == nil {
 		return nil
 	}
 	result := make([]string, 0)
-	for _, header := range request.state.raw.Header.Values(
+	for _, header := range r.state.raw.Header.Values(
 		"Sec-WebSocket-Protocol",
 	) {
 		for _, value := range strings.Split(header, ",") {
@@ -52,14 +52,14 @@ func (request Request) RequestedSubprotocols() []string {
 }
 
 // DecodeRequest validates the request shape before ordinary middleware runs.
-func DecodeRequest(request *http.Request) (any, error) {
-	if request == nil ||
-		request.Method != http.MethodGet ||
-		!headerContainsToken(request.Header, "Connection", "upgrade") ||
-		!headerContainsToken(request.Header, "Upgrade", "websocket") {
+func DecodeRequest(r *http.Request) (any, error) {
+	if r == nil ||
+		r.Method != http.MethodGet ||
+		!headerContainsToken(r.Header, "Connection", "upgrade") ||
+		!headerContainsToken(r.Header, "Upgrade", "websocket") {
 		return nil, ErrHandshake
 	}
-	return Request{state: &requestState{raw: request}}, nil
+	return Request{state: &requestState{raw: r}}, nil
 }
 
 // SessionHandler owns one upgraded connection until it returns.
@@ -72,23 +72,23 @@ type Session struct {
 }
 
 // NewSession constructs the response consumed by Hub.Encode.
-func NewSession(request Request, handler SessionHandler) (Session, error) {
-	if request.state == nil || request.state.raw == nil || handler == nil {
+func NewSession(r Request, handler SessionHandler) (Session, error) {
+	if r.state == nil || r.state.raw == nil || handler == nil {
 		return Session{}, fmt.Errorf(
 			"%w: request or handler is nil",
 			ErrInvalidOption,
 		)
 	}
-	return Session{request: request, handler: handler}, nil
+	return Session{request: r, handler: handler}, nil
 }
 
-func (request Request) consume() *http.Request {
-	if request.state == nil ||
-		request.state.raw == nil ||
-		!request.state.consumed.CompareAndSwap(false, true) {
+func (r Request) consume() *http.Request {
+	if r.state == nil ||
+		r.state.raw == nil ||
+		!r.state.consumed.CompareAndSwap(false, true) {
 		return nil
 	}
-	return request.state.raw
+	return r.state.raw
 }
 
 func headerContainsToken(

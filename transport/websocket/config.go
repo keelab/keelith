@@ -265,11 +265,11 @@ func validSubprotocol(value string) bool {
 	if value == "" || len(value) > 128 {
 		return false
 	}
-	for _, character := range value {
-		if character >= 'a' && character <= 'z' ||
-			character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			strings.ContainsRune("!#$%&'*+-.^_`|~", character) {
+	for _, r := range value {
+		if r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			strings.ContainsRune("!#$%&'*+-.^_`|~", r) {
 			continue
 		}
 		return false
@@ -282,8 +282,8 @@ func validPlainText(value string, maximum int) bool {
 		strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}
@@ -294,16 +294,16 @@ func validName(value string) bool {
 	if value == "" || len(value) > 128 {
 		return false
 	}
-	for _, character := range value {
+	for _, r := range value {
 		switch {
-		case character >= 'a' && character <= 'z',
-			character >= 'A' && character <= 'Z',
-			character >= '0' && character <= '9',
-			character == '.',
-			character == '_',
-			character == '-',
-			character == '/',
-			character == ':':
+		case r >= 'a' && r <= 'z',
+			r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9',
+			r == '.',
+			r == '_',
+			r == '-',
+			r == '/',
+			r == ':':
 		default:
 			return false
 		}

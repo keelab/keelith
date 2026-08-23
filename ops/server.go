@@ -46,8 +46,8 @@ type Option interface {
 
 type optionFunc func(*options) error
 
-func (function optionFunc) apply(options *options) error {
-	return function(options)
+func (fn optionFunc) apply(options *options) error {
+	return fn(options)
 }
 
 type options struct {
@@ -285,64 +285,64 @@ func New(registry *health.Registry, optionList ...Option) (*Server, error) {
 }
 
 // Name returns the stable App diagnostic name.
-func (server *Server) Name() string {
+func (s *Server) Name() string {
 	return "keelith.ops"
 }
 
 // Start listens synchronously and then serves in the background.
-func (server *Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
 	if ctx == nil {
 		return ErrNilContext
 	}
 
-	server.mu.Lock()
-	if server.state != stateNew {
-		server.mu.Unlock()
+	s.mu.Lock()
+	if s.state != stateNew {
+		s.mu.Unlock()
 		return ErrAlreadyStarted
 	}
-	server.state = stateStarting
-	server.mu.Unlock()
-	defer close(server.startDone)
+	s.state = stateStarting
+	s.mu.Unlock()
+	defer close(s.startDone)
 
 	var listenConfig net.ListenConfig
-	listener, err := listenConfig.Listen(ctx, "tcp", server.address)
+	listener, err := listenConfig.Listen(ctx, "tcp", s.address)
 	if err != nil {
-		server.completeServe(fmt.Errorf("ops: listen %q: %w", server.address, err))
-		return fmt.Errorf("ops: listen %q: %w", server.address, err)
+		s.completeServe(fmt.Errorf("ops: listen %q: %w", s.address, err))
+		return fmt.Errorf("ops: listen %q: %w", s.address, err)
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		closeErr := listener.Close()
 		result := errors.Join(cause, closeErr)
-		server.completeServe(result)
+		s.completeServe(result)
 		return result
 	}
 
-	server.mu.Lock()
-	server.listener = listener
-	server.state = stateRunning
-	server.mu.Unlock()
+	s.mu.Lock()
+	s.listener = listener
+	s.state = stateRunning
+	s.mu.Unlock()
 
-	go server.serve(listener)
+	go s.serve(listener)
 	return nil
 }
 
 // Stop gracefully shuts down the operational listener. It is concurrent-safe
 // and idempotent.
-func (server *Server) Stop(ctx context.Context) error {
+func (s *Server) Stop(ctx context.Context) error {
 	if ctx == nil {
 		return ErrNilContext
 	}
 
 	for {
-		server.mu.Lock()
-		current := server.state
+		s.mu.Lock()
+		current := s.state
 		switch current {
 		case stateNew:
-			server.mu.Unlock()
+			s.mu.Unlock()
 			return nil
 		case stateStarting:
-			startDone := server.startDone
-			server.mu.Unlock()
+			startDone := s.startDone
+			s.mu.Unlock()
 			select {
 			case <-startDone:
 				continue
@@ -350,83 +350,83 @@ func (server *Server) Stop(ctx context.Context) error {
 				return context.Cause(ctx)
 			}
 		case stateRunning, stateStopped:
-			if !server.stopInitiated {
-				server.stopInitiated = true
-				server.state = stateStopping
-				go server.shutdown(ctx)
+			if !s.stopInitiated {
+				s.stopInitiated = true
+				s.state = stateStopping
+				go s.shutdown(ctx)
 			}
-			stopDone := server.stopDone
-			server.mu.Unlock()
-			return waitForStop(ctx, stopDone, server.stopError)
+			stopDone := s.stopDone
+			s.mu.Unlock()
+			return waitForStop(ctx, stopDone, s.stopError)
 		case stateStopping:
-			stopDone := server.stopDone
-			server.mu.Unlock()
-			return waitForStop(ctx, stopDone, server.stopError)
+			stopDone := s.stopDone
+			s.mu.Unlock()
+			return waitForStop(ctx, stopDone, s.stopError)
 		default:
-			server.mu.Unlock()
+			s.mu.Unlock()
 			return nil
 		}
 	}
 }
 
 // Wait blocks until the listener terminates and returns its runtime error.
-func (server *Server) Wait() error {
-	<-server.done
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	return server.serveErr
+func (s *Server) Wait() error {
+	<-s.done
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.serveErr
 }
 
 // Address returns the allocated listener address after Start succeeds.
-func (server *Server) Address() (string, bool) {
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	if server.listener == nil {
+func (s *Server) Address() (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.listener == nil {
 		return "", false
 	}
-	return server.listener.Addr().String(), true
+	return s.listener.Addr().String(), true
 }
 
-func (server *Server) serve(listener net.Listener) {
-	err := server.httpServer.Serve(listener)
+func (s *Server) serve(listener net.Listener) {
+	err := s.httpServer.Serve(listener)
 	if errors.Is(err, http.ErrServerClosed) {
 		err = nil
 	}
-	server.completeServe(err)
+	s.completeServe(err)
 }
 
-func (server *Server) completeServe(err error) {
-	server.mu.Lock()
-	server.serveErr = err
-	if server.state == stateStarting || server.state == stateRunning {
-		server.state = stateStopped
+func (s *Server) completeServe(err error) {
+	s.mu.Lock()
+	s.serveErr = err
+	if s.state == stateStarting || s.state == stateRunning {
+		s.state = stateStopped
 	}
-	server.doneOnce.Do(func() {
-		close(server.done)
+	s.doneOnce.Do(func() {
+		close(s.done)
 	})
-	server.mu.Unlock()
+	s.mu.Unlock()
 }
 
-func (server *Server) shutdown(ctx context.Context) {
-	shutdownErr := server.httpServer.Shutdown(ctx)
+func (s *Server) shutdown(ctx context.Context) {
+	shutdownErr := s.httpServer.Shutdown(ctx)
 	if shutdownErr != nil {
-		shutdownErr = errors.Join(shutdownErr, server.httpServer.Close())
+		shutdownErr = errors.Join(shutdownErr, s.httpServer.Close())
 	}
-	<-server.done
+	<-s.done
 
-	server.mu.Lock()
-	server.stopErr = shutdownErr
-	server.state = stateStopped
-	server.stopOnce.Do(func() {
-		close(server.stopDone)
+	s.mu.Lock()
+	s.stopErr = shutdownErr
+	s.state = stateStopped
+	s.stopOnce.Do(func() {
+		close(s.stopDone)
 	})
-	server.mu.Unlock()
+	s.mu.Unlock()
 }
 
-func (server *Server) stopError() error {
-	server.mu.Lock()
-	defer server.mu.Unlock()
-	return server.stopErr
+func (s *Server) stopError() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stopErr
 }
 
 func waitForStop(

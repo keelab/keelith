@@ -4,7 +4,6 @@ import "fmt"
 
 // Option configures Cache internals.
 type Option interface {
-	// apply applies the option to the given settings.
 	apply(*settings) error
 }
 
@@ -15,8 +14,8 @@ func (f optionFunc) apply(settings *settings) error {
 }
 
 type settings struct {
-	random     Random // random source for TTL jitter
-	versioning bool   // enable atomic backend invalidation watermarks
+	random     Random
+	versioning bool
 }
 
 // WithRandom replaces the default TTL jitter source.

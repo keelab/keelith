@@ -101,11 +101,11 @@ func validAttributeKey(value string) bool {
 	if value == "" || len(value) > maxAttributeKeyBytes || strings.TrimSpace(value) != value || !utf8.ValidString(value) {
 		return false
 	}
-	for index, character := range value {
-		if unicode.IsLetter(character) || character == '_' || character == '-' {
+	for index, r := range value {
+		if unicode.IsLetter(r) || r == '_' || r == '-' {
 			continue
 		}
-		if index > 0 && (unicode.IsDigit(character) || character == '.') {
+		if index > 0 && (unicode.IsDigit(r) || r == '.') {
 			continue
 		}
 		return false
@@ -117,8 +117,8 @@ func validContextValue(value string, maxBytes int, allowEmpty bool) bool {
 	if (!allowEmpty && value == "") || len(value) > maxBytes || !utf8.ValidString(value) {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

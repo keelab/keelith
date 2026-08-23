@@ -106,19 +106,19 @@ type StageRequest struct {
 }
 
 // Validate checks bounded provider-neutral Stage input.
-func (request StageRequest) Validate() error {
-	if len(request.Content) == 0 || !request.Format.Valid() ||
-		!validText(request.Actor, true, maxActorBytes) ||
-		!validText(request.Message, false, maxMessageBytes) {
+func (r StageRequest) Validate() error {
+	if len(r.Content) == 0 || !r.Format.Valid() ||
+		!validText(r.Actor, true, maxActorBytes) ||
+		!validText(r.Message, false, maxMessageBytes) {
 		return ErrInvalidRequest
 	}
 	return nil
 }
 
 // Clone returns an independent request whose content can be safely retained.
-func (request StageRequest) Clone() StageRequest {
-	request.Content = append([]byte(nil), request.Content...)
-	return request
+func (r StageRequest) Clone() StageRequest {
+	r.Content = append([]byte(nil), r.Content...)
+	return r
 }
 
 // ActivateRequest atomically selects a staged Revision.
@@ -131,10 +131,10 @@ type ActivateRequest struct {
 
 // Validate checks bounded activation input. Generation zero is valid only as
 // the expectation for the first activation.
-func (request ActivateRequest) Validate() error {
-	if !ValidRevisionID(request.Revision) ||
-		!validText(request.Actor, true, maxActorBytes) ||
-		!validText(request.Reason, true, maxMessageBytes) {
+func (r ActivateRequest) Validate() error {
+	if !ValidRevisionID(r.Revision) ||
+		!validText(r.Actor, true, maxActorBytes) ||
+		!validText(r.Reason, true, maxMessageBytes) {
 		return ErrInvalidRequest
 	}
 	return nil
@@ -186,8 +186,8 @@ func validText(value string, required bool, maxBytes int) bool {
 		(required && strings.TrimSpace(value) == "") {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

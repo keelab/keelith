@@ -53,8 +53,8 @@ type Option interface {
 
 type optionFunc func(*options) error
 
-func (function optionFunc) apply(options *options) error {
-	return function(options)
+func (fn optionFunc) apply(options *options) error {
+	return fn(options)
 }
 
 type options struct {

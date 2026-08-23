@@ -112,32 +112,32 @@ func FromIdentity(identity service.Identity) (*Resource, error) {
 }
 
 // Values returns an independent key/value snapshot.
-func (resource *Resource) Values() map[string]string {
-	if resource == nil {
+func (r *Resource) Values() map[string]string {
+	if r == nil {
 		return nil
 	}
-	result := make(map[string]string, len(resource.values))
-	for key, value := range resource.values {
+	result := make(map[string]string, len(r.values))
+	for key, value := range r.values {
 		result[key] = value
 	}
 	return result
 }
 
 // Attributes returns independent OTel attributes.
-func (resource *Resource) Attributes() []attribute.KeyValue {
-	if resource == nil {
+func (r *Resource) Attributes() []attribute.KeyValue {
+	if r == nil {
 		return nil
 	}
-	return append([]attribute.KeyValue(nil), resource.attributes...)
+	return append([]attribute.KeyValue(nil), r.attributes...)
 }
 
 // SlogAttributes returns the same values as slog attributes.
-func (resource *Resource) SlogAttributes() []slog.Attr {
-	if resource == nil {
+func (r *Resource) SlogAttributes() []slog.Attr {
+	if r == nil {
 		return nil
 	}
-	result := make([]slog.Attr, 0, len(resource.attributes))
-	for _, value := range resource.attributes {
+	result := make([]slog.Attr, 0, len(r.attributes))
+	for _, value := range r.attributes {
 		result = append(
 			result,
 			slog.String(string(value.Key), value.Value.AsString()),
@@ -147,11 +147,11 @@ func (resource *Resource) SlogAttributes() []slog.Attr {
 }
 
 // OTel returns the immutable SDK Resource.
-func (resource *Resource) OTel() *sdkresource.Resource {
-	if resource == nil {
+func (r *Resource) OTel() *sdkresource.Resource {
+	if r == nil {
 		return sdkresource.Empty()
 	}
-	return resource.otel
+	return r.otel
 }
 
 func validRequired(value string) bool {
@@ -162,8 +162,8 @@ func validOptional(value string) bool {
 	if strings.TrimSpace(value) != value || value == "" {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

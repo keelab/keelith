@@ -239,10 +239,10 @@ func safeReason(value string) string {
 	if value == "" || len(value) > maxLoggedReasonBytes {
 		return "INTERNAL"
 	}
-	for _, character := range value {
-		if character >= 'A' && character <= 'Z' ||
-			character >= '0' && character <= '9' ||
-			character == '_' {
+	for _, r := range value {
+		if r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '_' {
 			continue
 		}
 		return "INTERNAL"

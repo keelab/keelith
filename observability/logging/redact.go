@@ -114,8 +114,8 @@ func keySegments(key string) []string {
 			start = -1
 		}
 	}
-	for index, character := range characters {
-		if !unicode.IsLetter(character) && !unicode.IsDigit(character) {
+	for index, r := range characters {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
 			flush(index)
 			continue
 		}
@@ -124,9 +124,9 @@ func keySegments(key string) []string {
 			continue
 		}
 		previous := characters[index-1]
-		camelBoundary := unicode.IsUpper(character) &&
+		camelBoundary := unicode.IsUpper(r) &&
 			(unicode.IsLower(previous) || unicode.IsDigit(previous))
-		acronymBoundary := unicode.IsUpper(character) &&
+		acronymBoundary := unicode.IsUpper(r) &&
 			unicode.IsUpper(previous) &&
 			index+1 < len(characters) &&
 			unicode.IsLower(characters[index+1])
@@ -141,9 +141,9 @@ func keySegments(key string) []string {
 
 func compactKey(key string) string {
 	var result strings.Builder
-	for _, character := range key {
-		if unicode.IsLetter(character) || unicode.IsDigit(character) {
-			result.WriteRune(unicode.ToLower(character))
+	for _, r := range key {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			result.WriteRune(unicode.ToLower(r))
 		}
 	}
 	return result.String()

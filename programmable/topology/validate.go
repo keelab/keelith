@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -34,18 +35,14 @@ func clonePlan(plan Plan) Snapshot {
 		placements[placement] = struct{}{}
 	}
 	components := make(map[ComponentID]PlacementID, len(plan.Components))
-	for component, placement := range plan.Components {
-		components[component] = placement
-	}
+	maps.Copy(components, plan.Components)
 	dependencies := make(
 		map[ComponentID]map[ComponentID]BindingMode,
 		len(plan.Dependencies),
 	)
 	for source, targets := range plan.Dependencies {
 		clonedTargets := make(map[ComponentID]BindingMode, len(targets))
-		for target, mode := range targets {
-			clonedTargets[target] = mode
-		}
+		maps.Copy(clonedTargets, targets)
 		dependencies[source] = clonedTargets
 	}
 	var traffic []EpochWeight

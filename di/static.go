@@ -1,0 +1,253 @@
+package di
+
+import (
+	"bytes"
+	"fmt"
+	"go/format"
+	"maps"
+	"reflect"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// StaticProvider is one explicit, code-generatable constructor call.
+type StaticProvider struct {
+	ID      string
+	Call    string
+	Output  string
+	Inputs  []string
+	Error   bool
+	Cleanup bool
+}
+
+// StaticPlan is an opt-in no-reflection production wiring plan.
+type StaticPlan struct {
+	Package    string
+	Function   string
+	RootType   string
+	RootValue  string
+	Imports    map[string]string
+	Parameters []StaticParameter
+	Providers  []StaticProvider
+}
+
+// StaticParameter maps one supplied DI binding to an explicit generated
+// function parameter. Type is Go source and Binding is reflect.Type.String().
+type StaticParameter struct {
+	Name    string
+	Type    string
+	Binding string
+}
+
+// StaticTarget supplies application-owned Go identifiers for one generated
+// entrypoint. Provider calls and dependency expressions come from Static
+// metadata attached to the same runtime Module IR.
+type StaticTarget struct {
+	Package    string
+	Function   string
+	RootType   string
+	RootValue  string
+	Imports    map[string]string
+	Parameters []StaticParameter
+}
+
+// StaticPlanFromModule validates root T and projects every reachable Provider
+// into a no-reflection plan. Unsupported or unannotated Provider semantics are
+// rejected before code generation rather than guessed from reflection names.
+func StaticPlanFromModule[T any](module Module, target StaticTarget) (StaticPlan, error) {
+	description, err := Validate[T](module)
+	if err != nil {
+		return StaticPlan{}, err
+	}
+	providers := make(map[string]*provider)
+	collectModuleProviders(module, providers)
+	result := StaticPlan{
+		Package: target.Package, Function: target.Function,
+		RootType: target.RootType, RootValue: target.RootValue,
+		Imports:    cloneImports(target.Imports),
+		Parameters: append([]StaticParameter(nil), target.Parameters...),
+		Providers:  make([]StaticProvider, 0, len(description.Providers)),
+	}
+	for _, item := range description.Providers {
+		provider := providers[item.ID]
+		if provider == nil {
+			return StaticPlan{}, fmt.Errorf("di: static provider %q is not present in module IR", item.ID)
+		}
+		if provider.static == nil {
+			if provider.supplied && suppliedParameter(result.Parameters, provider.outputs[0].typeOf.String()) != "" {
+				continue
+			}
+			return StaticPlan{}, fmt.Errorf("di: provider %q has no static metadata", item.ID)
+		}
+		if provider.supplied || provider.decorator || provider.override || len(provider.outputs) != 1 || provider.outputs[0].group != "" {
+			return StaticPlan{}, fmt.Errorf("di: provider %q uses unsupported static semantics", item.ID)
+		}
+		if len(provider.static.inputs) != provider.function.NumIn() {
+			return StaticPlan{}, fmt.Errorf("di: provider %q static inputs do not match constructor parameters", item.ID)
+		}
+		result.Providers = append(result.Providers, StaticProvider{
+			ID: item.ID, Call: provider.static.call, Output: provider.static.output,
+			Inputs: append([]string(nil), provider.static.inputs...),
+			Error:  providerReturnsError(provider.function), Cleanup: providerReturnsCleanup(provider.function),
+		})
+	}
+	ordered, err := orderStaticProviders(result.Providers)
+	if err != nil {
+		return StaticPlan{}, err
+	}
+	result.Providers = ordered
+	return result, nil
+}
+
+func collectModuleProviders(module Module, result map[string]*provider) {
+	for index := range module.providers {
+		item := &module.providers[index]
+		result[item.module+":"+item.displayName] = item
+	}
+	for _, child := range module.includes {
+		collectModuleProviders(child, result)
+	}
+}
+
+func cloneImports(source map[string]string) map[string]string {
+	result := make(map[string]string, len(source))
+	maps.Copy(result, source)
+	return result
+}
+
+func providerReturnsError(function reflect.Type) bool {
+	return function.NumOut() > 0 && function.Out(function.NumOut()-1) == errorType
+}
+
+func providerReturnsCleanup(function reflect.Type) bool {
+	for index := 1; index < function.NumOut(); index++ {
+		if function.Out(index) == cleanupType {
+			return true
+		}
+	}
+	return false
+}
+
+// GenerateStaticGo topologically emits direct constructor calls and bounded
+// reverse cleanup. All expressions are explicit application-owned Go source;
+// the generator never guesses identifiers from reflection names.
+func GenerateStaticGo(plan StaticPlan) ([]byte, error) {
+	if !validIdentifier(plan.Package) || !validIdentifier(plan.Function) || !strings.HasPrefix(plan.RootType, "*") || plan.RootValue == "" {
+		return nil, fmt.Errorf("di: invalid static plan")
+	}
+	ordered, err := orderStaticProviders(plan.Providers)
+	if err != nil {
+		return nil, err
+	}
+	aliases := make([]string, 0, len(plan.Imports))
+	for alias := range plan.Imports {
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+	var output bytes.Buffer
+	output.WriteString("// Code generated by Keelith. DO NOT EDIT.\n\n")
+	fmt.Fprintf(&output, "package %s\n\nimport (\n\t\"context\"\n\t\"errors\"\n", plan.Package)
+	for _, provider := range ordered {
+		if provider.Error {
+			output.WriteString("\t\"fmt\"\n")
+			break
+		}
+	}
+	for _, alias := range aliases {
+		if !validIdentifier(alias) {
+			return nil, fmt.Errorf("di: invalid import alias %q", alias)
+		}
+		fmt.Fprintf(&output, "\t%s %s\n", alias, strconv.Quote(plan.Imports[alias]))
+	}
+	output.WriteString(")\n\n")
+	parameters := []string{"ctx context.Context"}
+	seenParameters := make(map[string]struct{}, len(plan.Parameters))
+	for _, parameter := range plan.Parameters {
+		if !validIdentifier(parameter.Name) || strings.TrimSpace(parameter.Type) == "" || strings.TrimSpace(parameter.Binding) == "" {
+			return nil, fmt.Errorf("di: invalid static parameter")
+		}
+		if _, duplicate := seenParameters[parameter.Name]; duplicate {
+			return nil, fmt.Errorf("di: duplicate static parameter %q", parameter.Name)
+		}
+		seenParameters[parameter.Name] = struct{}{}
+		parameters = append(parameters, parameter.Name+" "+parameter.Type)
+	}
+	fmt.Fprintf(&output, "func %s(%s) (%s, func(context.Context) error, error) {\n", plan.Function, strings.Join(parameters, ", "), plan.RootType)
+	output.WriteString("\tvar cleanups []func(context.Context) error\n\trollback := func(closeCtx context.Context) error {\n\t\tvar failures []error\n\t\tfor index := len(cleanups)-1; index >= 0; index-- { failures = append(failures, cleanups[index](closeCtx)) }\n\t\treturn errors.Join(failures...)\n\t}\n")
+	for _, provider := range ordered {
+		arguments := strings.Join(provider.Inputs, ", ")
+		left := provider.Output
+		if provider.Cleanup {
+			left += ", cleanup"
+		}
+		if provider.Error {
+			left += ", err"
+		}
+		fmt.Fprintf(&output, "\t%s := %s(%s)\n", left, provider.Call, arguments)
+		if provider.Error {
+			fmt.Fprintf(&output, "\tif err != nil { return nil, nil, errors.Join(fmt.Errorf(%s, err), rollback(context.WithoutCancel(ctx))) }\n", strconv.Quote("provide "+provider.ID+": %w"))
+		}
+		if provider.Cleanup {
+			output.WriteString("\tif cleanup != nil { cleanups = append(cleanups, cleanup) }\n")
+		}
+	}
+	fmt.Fprintf(&output, "\treturn %s, rollback, nil\n}\n", plan.RootValue)
+	formatted, err := format.Source(output.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("di: format static wiring: %w", err)
+	}
+	return formatted, nil
+}
+
+func suppliedParameter(parameters []StaticParameter, binding string) string {
+	for _, parameter := range parameters {
+		if parameter.Binding == binding {
+			return parameter.Name
+		}
+	}
+	return ""
+}
+
+func orderStaticProviders(providers []StaticProvider) ([]StaticProvider, error) {
+	byOutput := make(map[string]StaticProvider, len(providers))
+	for _, provider := range providers {
+		if provider.ID == "" || !validIdentifier(provider.Output) || provider.Call == "" {
+			return nil, fmt.Errorf("di: invalid static provider")
+		}
+		if _, duplicate := byOutput[provider.Output]; duplicate {
+			return nil, fmt.Errorf("%w: static output %s", ErrDuplicateProvider, provider.Output)
+		}
+		byOutput[provider.Output] = provider
+	}
+	states := make(map[string]uint8)
+	result := make([]StaticProvider, 0, len(providers))
+	var visit func(string) error
+	visit = func(output string) error {
+		if states[output] == 2 {
+			return nil
+		}
+		if states[output] == 1 {
+			return fmt.Errorf("%w: static output %s", ErrDependencyCycle, output)
+		}
+		provider, exists := byOutput[output]
+		if !exists {
+			return nil
+		}
+		states[output] = 1
+		for _, input := range provider.Inputs {
+			if err := visit(input); err != nil {
+				return err
+			}
+		}
+		states[output] = 2
+		result = append(result, provider)
+		return nil
+	}
+	for _, provider := range providers {
+		if err := visit(provider.Output); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}

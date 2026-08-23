@@ -131,8 +131,8 @@ func validIdentity(value string) bool {
 		len(value) > maxIdentityBytes || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
 		return false
 	}
-	for _, character := range value {
-		if unicode.IsControl(character) {
+	for _, r := range value {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

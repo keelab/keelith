@@ -23,44 +23,44 @@ func NewOwnershipStore() *OwnershipStore {
 
 // Bind idempotently records an exact resource and rejects another owner or
 // operation for the same CallID.
-func (store *OwnershipStore) Bind(
+func (s *OwnershipStore) Bind(
 	ctx context.Context,
 	ownership continuation.Ownership,
 ) error {
-	if store == nil || ctx == nil || !ownership.Valid() {
+	if s == nil || ctx == nil || !ownership.Valid() {
 		return continuation.ErrInvalidService
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key := ownership.CallID().String()
-	current, exists := store.values[key]
+	current, exists := s.values[key]
 	if exists {
 		if current.Equal(ownership) {
 			return nil
 		}
 		return continuation.ErrOwnershipConflict
 	}
-	store.values[key] = ownership
+	s.values[key] = ownership
 	return nil
 }
 
 // Load returns one immutable ownership binding.
-func (store *OwnershipStore) Load(
+func (s *OwnershipStore) Load(
 	ctx context.Context,
 	callID continuation.CallID,
 ) (continuation.Ownership, error) {
-	if store == nil || ctx == nil || callID.String() == "" {
+	if s == nil || ctx == nil || callID.String() == "" {
 		return continuation.Ownership{}, continuation.ErrInvalidService
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Ownership{}, cause
 	}
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-	ownership, exists := store.values[callID.String()]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ownership, exists := s.values[callID.String()]
 	if !exists {
 		return continuation.Ownership{}, continuation.ErrOwnershipNotFound
 	}

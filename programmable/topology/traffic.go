@@ -59,56 +59,56 @@ func NewTrafficSelector(weights []EpochWeight) (*TrafficSelector, error) {
 
 // Select returns the epoch for one new call. A routing key is stable across
 // callers and processes; an empty key advances through one bounded cycle.
-func (selector *TrafficSelector) Select(routingKey string) (uint64, error) {
-	if selector == nil || len(selector.weights) == 0 {
+func (ts *TrafficSelector) Select(routingKey string) (uint64, error) {
+	if ts == nil || len(ts.weights) == 0 {
 		return 0, ErrInvalidTraffic
 	}
 	if routingKey == "" {
 		bucket := uint16(
-			(selector.rotation.Add(1) - 1) % uint64(TotalBasisPoints),
+			(ts.rotation.Add(1) - 1) % uint64(TotalBasisPoints),
 		)
-		return selector.selectBucket(bucket), nil
+		return ts.selectBucket(bucket), nil
 	}
-	return selector.selectRendezvous(routingKey), nil
+	return ts.selectRendezvous(routingKey), nil
 }
 
 // Weights returns an independent, canonical copy of the table.
-func (selector *TrafficSelector) Weights() []EpochWeight {
-	if selector == nil {
+func (ts *TrafficSelector) Weights() []EpochWeight {
+	if ts == nil {
 		return nil
 	}
-	return append([]EpochWeight(nil), selector.weights...)
+	return append([]EpochWeight(nil), ts.weights...)
 }
 
 // BasisPoints returns the configured weight for one epoch.
-func (selector *TrafficSelector) BasisPoints(epoch uint64) uint16 {
-	if selector == nil {
+func (ts *TrafficSelector) BasisPoints(epoch uint64) uint16 {
+	if ts == nil {
 		return 0
 	}
-	index := sort.Search(len(selector.weights), func(index int) bool {
-		return selector.weights[index].Epoch >= epoch
+	index := sort.Search(len(ts.weights), func(index int) bool {
+		return ts.weights[index].Epoch >= epoch
 	})
-	if index == len(selector.weights) || selector.weights[index].Epoch != epoch {
+	if index == len(ts.weights) || ts.weights[index].Epoch != epoch {
 		return 0
 	}
-	return selector.weights[index].BasisPoints
+	return ts.weights[index].BasisPoints
 }
 
-func (selector *TrafficSelector) selectBucket(bucket uint16) uint64 {
+func (ts *TrafficSelector) selectBucket(bucket uint16) uint64 {
 	cumulative := uint32(0)
-	for _, weight := range selector.weights {
+	for _, weight := range ts.weights {
 		cumulative += uint32(weight.BasisPoints)
 		if uint32(bucket) < cumulative {
 			return weight.Epoch
 		}
 	}
-	return selector.weights[len(selector.weights)-1].Epoch
+	return ts.weights[len(ts.weights)-1].Epoch
 }
 
-func (selector *TrafficSelector) selectRendezvous(key string) uint64 {
+func (ts *TrafficSelector) selectRendezvous(key string) uint64 {
 	selected := uint64(0)
 	best := math.Inf(1)
-	for _, weight := range selector.weights {
+	for _, weight := range ts.weights {
 		if weight.BasisPoints == 0 {
 			continue
 		}

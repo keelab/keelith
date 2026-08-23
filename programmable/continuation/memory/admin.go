@@ -11,11 +11,11 @@ import (
 var _ continuation.AdminStore = (*Store)(nil)
 
 // ListCalls returns payload-free summaries in stable CallID order.
-func (store *Store) ListCalls(
+func (s *Store) ListCalls(
 	ctx context.Context,
 	request continuation.ListRequest,
 ) ([]continuation.CallSummary, error) {
-	if store == nil ||
+	if s == nil ||
 		ctx == nil ||
 		request.Limit < 1 ||
 		request.Limit > 1000 {
@@ -24,11 +24,11 @@ func (store *Store) ListCalls(
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.ensureState()
-	keys := make([]string, 0, len(store.records))
-	for key := range store.records {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureState()
+	keys := make([]string, 0, len(s.records))
+	for key := range s.records {
 		if key > request.After {
 			keys = append(keys, key)
 		}
@@ -40,8 +40,8 @@ func (store *Store) ListCalls(
 	result := make([]continuation.CallSummary, 0, len(keys))
 	for _, key := range keys {
 		summary, err := continuation.NewCallSummary(
-			store.records[key],
-			store.expires[key],
+			s.records[key],
+			s.expires[key],
 		)
 		if err != nil {
 			return nil, err
@@ -52,45 +52,45 @@ func (store *Store) ListCalls(
 }
 
 // GetCall returns one payload-free summary.
-func (store *Store) GetCall(
+func (s *Store) GetCall(
 	ctx context.Context,
 	callID continuation.CallID,
 ) (continuation.CallSummary, error) {
-	if store == nil || ctx == nil || callID.String() == "" {
+	if s == nil || ctx == nil || callID.String() == "" {
 		return continuation.CallSummary{}, continuation.ErrInvalidRetention
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.CallSummary{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.ensureState()
-	snapshot, exists := store.records[callID.String()]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureState()
+	snapshot, exists := s.records[callID.String()]
 	if !exists {
 		return continuation.CallSummary{}, continuation.ErrNotFound
 	}
 	return continuation.NewCallSummary(
 		snapshot,
-		store.expires[callID.String()],
+		s.expires[callID.String()],
 	)
 }
 
 // PruneFrames physically removes terminal frames below floor.
-func (store *Store) PruneFrames(
+func (s *Store) PruneFrames(
 	ctx context.Context,
 	callID continuation.CallID,
 	floor uint64,
 ) (continuation.Snapshot, error) {
-	if store == nil || ctx == nil || callID.String() == "" {
+	if s == nil || ctx == nil || callID.String() == "" {
 		return continuation.Snapshot{}, continuation.ErrInvalidRetention
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.ensureState()
-	current, exists := store.records[callID.String()]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureState()
+	current, exists := s.records[callID.String()]
 	if !exists {
 		return continuation.Snapshot{}, continuation.ErrNotFound
 	}
@@ -101,16 +101,16 @@ func (store *Store) PruneFrames(
 	if err != nil {
 		return continuation.Snapshot{}, err
 	}
-	store.records[callID.String()] = pruned
+	s.records[callID.String()] = pruned
 	return pruned, nil
 }
 
 // Expire atomically terminates one non-terminal call and clears its lease.
-func (store *Store) Expire(
+func (s *Store) Expire(
 	ctx context.Context,
 	request continuation.ExpireRequest,
 ) (continuation.Snapshot, error) {
-	if store == nil ||
+	if s == nil ||
 		ctx == nil ||
 		request.CallID.String() == "" ||
 		request.ExpectedRevision == 0 ||
@@ -120,11 +120,11 @@ func (store *Store) Expire(
 	if cause := context.Cause(ctx); cause != nil {
 		return continuation.Snapshot{}, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.ensureState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureState()
 	key := request.CallID.String()
-	current, exists := store.records[key]
+	current, exists := s.records[key]
 	if !exists {
 		return continuation.Snapshot{}, continuation.ErrNotFound
 	}
@@ -155,19 +155,19 @@ func (store *Store) Expire(
 	if err != nil {
 		return continuation.Snapshot{}, err
 	}
-	store.records[key] = expired
-	store.expires[key] = request.ExpiresAt.UTC()
-	delete(store.leases, key)
+	s.records[key] = expired
+	s.expires[key] = request.ExpiresAt.UTC()
+	delete(s.leases, key)
 	return expired, nil
 }
 
 // DeleteExpired removes a bounded stable batch of elapsed terminal calls.
-func (store *Store) DeleteExpired(
+func (s *Store) DeleteExpired(
 	ctx context.Context,
 	before time.Time,
 	limit int,
 ) (int, error) {
-	if store == nil ||
+	if s == nil ||
 		ctx == nil ||
 		before.IsZero() ||
 		limit < 1 ||
@@ -177,12 +177,12 @@ func (store *Store) DeleteExpired(
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.ensureState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureState()
 	keys := make([]string, 0)
-	for key, expiresAt := range store.expires {
-		snapshot, exists := store.records[key]
+	for key, expiresAt := range s.expires {
+		snapshot, exists := s.records[key]
 		if exists &&
 			snapshot.Status().Terminal() &&
 			!expiresAt.After(before) {
@@ -194,9 +194,9 @@ func (store *Store) DeleteExpired(
 		keys = keys[:limit]
 	}
 	for _, key := range keys {
-		delete(store.records, key)
-		delete(store.leases, key)
-		delete(store.expires, key)
+		delete(s.records, key)
+		delete(s.leases, key)
+		delete(s.expires, key)
 	}
 	return len(keys), nil
 }

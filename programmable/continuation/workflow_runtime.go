@@ -166,17 +166,17 @@ func NewWorkflowRuntime(config WorkflowRuntimeConfig) (*WorkflowRuntime, error) 
 }
 
 // Start durably creates one exact workflow definition version.
-func (runtime *WorkflowRuntime) Start(
+func (wr *WorkflowRuntime) Start(
 	ctx context.Context,
 	callID CallID,
 	operation Operation,
 	version string,
 	input []byte,
 ) (Snapshot, error) {
-	if runtime == nil || ctx == nil {
+	if wr == nil || ctx == nil {
 		return Snapshot{}, ErrInvalidRuntime
 	}
-	definition, exists := runtime.registry.ResolveWorkflow(operation, version)
+	definition, exists := wr.registry.ResolveWorkflow(operation, version)
 	if !exists {
 		return Snapshot{}, ErrWorkflowDefinitionMismatch
 	}
@@ -184,29 +184,29 @@ func (runtime *WorkflowRuntime) Start(
 		callID,
 		definition,
 		input,
-		runtime.now(),
+		wr.now(),
 	)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	return runtime.store.Create(ctx, snapshot)
+	return wr.store.Create(ctx, snapshot)
 }
 
 // RunOnce reconciles one bounded ready workflow batch.
-func (runtime *WorkflowRuntime) RunOnce(ctx context.Context) (int, error) {
-	if runtime == nil || ctx == nil {
+func (wr *WorkflowRuntime) RunOnce(ctx context.Context) (int, error) {
+	if wr == nil || ctx == nil {
 		return 0, ErrInvalidRuntime
 	}
 	if cause := context.Cause(ctx); cause != nil {
 		return 0, cause
 	}
-	ready, err := runtime.store.ListReady(ctx, maxWorkflowReadyScan)
+	ready, err := wr.store.ListReady(ctx, maxWorkflowReadyScan)
 	if err != nil {
 		return 0, err
 	}
 	processed := 0
 	for _, candidate := range ready {
-		if processed >= runtime.batchSize {
+		if processed >= wr.batchSize {
 			break
 		}
 		if candidate.workflow == nil {
@@ -215,11 +215,11 @@ func (runtime *WorkflowRuntime) RunOnce(ctx context.Context) (int, error) {
 		if cause := context.Cause(ctx); cause != nil {
 			return processed, cause
 		}
-		claim, claimErr := runtime.leases.Claim(ctx, ClaimRequest{
+		claim, claimErr := wr.leases.Claim(ctx, ClaimRequest{
 			CallID:           candidate.CallID(),
 			ExpectedRevision: candidate.Revision(),
-			OwnerID:          runtime.executorID,
-			LeaseDuration:    runtime.leaseDuration,
+			OwnerID:          wr.executorID,
+			LeaseDuration:    wr.leaseDuration,
 		})
 		if errors.Is(claimErr, ErrConflict) || errors.Is(claimErr, ErrNotReady) ||
 			errors.Is(claimErr, ErrTimerNotReady) || errors.Is(claimErr, ErrLeaseHeld) {
@@ -229,13 +229,13 @@ func (runtime *WorkflowRuntime) RunOnce(ctx context.Context) (int, error) {
 			return processed, claimErr
 		}
 		processed++
-		next, reconcileErr := runtime.reconcileWithHeartbeat(
+		next, reconcileErr := wr.reconcileWithHeartbeat(
 			ctx,
 			claim.Snapshot,
 			candidate.ReadyAt(),
 		)
 		if reconcileErr != nil {
-			runtime.release(ctx, claim)
+			wr.release(ctx, claim)
 			return processed, reconcileErr
 		}
 		request := CommitRequest{
@@ -245,10 +245,10 @@ func (runtime *WorkflowRuntime) RunOnce(ctx context.Context) (int, error) {
 			Snapshot:         next,
 		}
 		if next.Status().Terminal() {
-			request.ExpiresAt = runtime.now().UTC().Add(runtime.terminalRetention)
+			request.ExpiresAt = wr.now().UTC().Add(wr.terminalRetention)
 		}
-		if _, err := runtime.store.Transition(ctx, request); err != nil {
-			runtime.release(ctx, claim)
+		if _, err := wr.store.Transition(ctx, request); err != nil {
+			wr.release(ctx, claim)
 			return processed, err
 		}
 	}
@@ -256,18 +256,18 @@ func (runtime *WorkflowRuntime) RunOnce(ctx context.Context) (int, error) {
 }
 
 // Run polls and reconciles workflow parents until the context ends.
-func (runtime *WorkflowRuntime) Run(ctx context.Context) error {
-	if runtime == nil || ctx == nil {
+func (wr *WorkflowRuntime) Run(ctx context.Context) error {
+	if wr == nil || ctx == nil {
 		return ErrInvalidRuntime
 	}
 	for {
 		if cause := context.Cause(ctx); cause != nil {
 			return cause
 		}
-		if _, err := runtime.RunOnce(ctx); err != nil {
+		if _, err := wr.RunOnce(ctx); err != nil {
 			return err
 		}
-		timer := time.NewTimer(runtime.pollInterval)
+		timer := time.NewTimer(wr.pollInterval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -277,7 +277,7 @@ func (runtime *WorkflowRuntime) Run(ctx context.Context) error {
 	}
 }
 
-func (runtime *WorkflowRuntime) reconcileWithHeartbeat(
+func (wr *WorkflowRuntime) reconcileWithHeartbeat(
 	ctx context.Context,
 	current Snapshot,
 	authoritativeWake time.Time,
@@ -287,7 +287,7 @@ func (runtime *WorkflowRuntime) reconcileWithHeartbeat(
 	done := make(chan struct{})
 	heartbeatResult := make(chan error, 1)
 	go func() {
-		timer := time.NewTicker(runtime.heartbeat)
+		timer := time.NewTicker(wr.heartbeat)
 		defer timer.Stop()
 		for {
 			select {
@@ -298,12 +298,12 @@ func (runtime *WorkflowRuntime) reconcileWithHeartbeat(
 				heartbeatResult <- context.Cause(reconcileCtx)
 				return
 			case <-timer.C:
-				_, err := runtime.leases.Renew(reconcileCtx, LeaseRequest{
+				_, err := wr.leases.Renew(reconcileCtx, LeaseRequest{
 					CallID:        current.CallID(),
 					Revision:      current.Revision(),
 					Fence:         current.Fence(),
-					OwnerID:       runtime.executorID,
-					LeaseDuration: runtime.leaseDuration,
+					OwnerID:       wr.executorID,
+					LeaseDuration: wr.leaseDuration,
 				})
 				if err != nil {
 					cancel(err)
@@ -313,7 +313,7 @@ func (runtime *WorkflowRuntime) reconcileWithHeartbeat(
 			}
 		}
 	}()
-	next, err := runtime.reconcile(reconcileCtx, current, authoritativeWake)
+	next, err := wr.reconcile(reconcileCtx, current, authoritativeWake)
 	close(done)
 	heartbeatErr := <-heartbeatResult
 	if heartbeatErr != nil && !errors.Is(heartbeatErr, context.Canceled) {
@@ -322,13 +322,13 @@ func (runtime *WorkflowRuntime) reconcileWithHeartbeat(
 	return next, err
 }
 
-func (runtime *WorkflowRuntime) reconcile(
+func (wr *WorkflowRuntime) reconcile(
 	ctx context.Context,
 	current Snapshot,
 	authoritativeWake time.Time,
 ) (Snapshot, error) {
 	state := cloneWorkflowState(current.workflow)
-	definition, exists := runtime.registry.ResolveWorkflow(
+	definition, exists := wr.registry.ResolveWorkflow(
 		current.Operation(),
 		state.Version,
 	)
@@ -353,7 +353,7 @@ func (runtime *WorkflowRuntime) reconcile(
 		)
 	}
 	frames := make([]Frame, 0)
-	if err := runtime.refreshWaitingChildren(ctx, state, &frames); err != nil {
+	if err := wr.refreshWaitingChildren(ctx, state, &frames); err != nil {
 		return Snapshot{}, err
 	}
 	for id, node := range state.Nodes {
@@ -364,7 +364,7 @@ func (runtime *WorkflowRuntime) reconcile(
 		}
 	}
 	actions := 0
-	for actions < runtime.maxNodeActions {
+	for actions < wr.maxNodeActions {
 		commands, err := planWorkflowForParent(
 			definition,
 			state,
@@ -377,10 +377,10 @@ func (runtime *WorkflowRuntime) reconcile(
 			break
 		}
 		for _, command := range commands {
-			if actions >= runtime.maxNodeActions {
+			if actions >= wr.maxNodeActions {
 				break
 			}
-			if err := runtime.executeCommand(
+			if err := wr.executeCommand(
 				ctx,
 				current.CallID(),
 				state,
@@ -411,14 +411,14 @@ func (runtime *WorkflowRuntime) reconcile(
 			moveWorkflow(status, current.Fence(), state, time.Time{}, frames...),
 		)
 	}
-	wakeAt := runtime.nextWakeAt(state)
+	wakeAt := wr.nextWakeAt(state)
 	return Apply(
 		current,
 		moveWorkflow(StatusSuspended, current.Fence(), state, wakeAt, frames...),
 	)
 }
 
-func (runtime *WorkflowRuntime) executeCommand(
+func (wr *WorkflowRuntime) executeCommand(
 	ctx context.Context,
 	parent CallID,
 	state *workflowSnapshotState,
@@ -440,13 +440,13 @@ func (runtime *WorkflowRuntime) executeCommand(
 		node.Status = WorkflowNodeWaiting
 		node.ReadyAt = command.readyAt
 	case WorkflowNodeChild:
-		if isNilWorkflowValue(runtime.children) {
+		if isNilWorkflowValue(wr.children) {
 			return ErrWorkflowHandlerNotFound
 		}
 		node.Status = WorkflowNodeWaiting
 		node.ChildCallID = command.childCallID
 		state.Nodes[node.ID] = node
-		_, err := runtime.children.StartCall(
+		_, err := wr.children.StartCall(
 			ctx,
 			command.childCallID,
 			command.operation,
@@ -455,9 +455,9 @@ func (runtime *WorkflowRuntime) executeCommand(
 		if err != nil && !errors.Is(err, ErrAlreadyExists) {
 			return fmt.Errorf("continuation: start child: %w", err)
 		}
-		return runtime.refreshChild(ctx, state, node.ID, frames)
+		return wr.refreshChild(ctx, state, node.ID, frames)
 	case WorkflowNodeMachine:
-		handler, exists := runtime.handlers[command.operation.String()]
+		handler, exists := wr.handlers[command.operation.String()]
 		if !exists || isNilWorkflowValue(handler) {
 			return ErrWorkflowHandlerNotFound
 		}
@@ -489,14 +489,14 @@ func (runtime *WorkflowRuntime) executeCommand(
 	return nil
 }
 
-func (runtime *WorkflowRuntime) refreshWaitingChildren(
+func (wr *WorkflowRuntime) refreshWaitingChildren(
 	ctx context.Context,
 	state *workflowSnapshotState,
 	frames *[]Frame,
 ) error {
 	for id, node := range state.Nodes {
 		if node.Kind == WorkflowNodeChild && node.Status == WorkflowNodeWaiting {
-			if err := runtime.refreshChild(ctx, state, id, frames); err != nil {
+			if err := wr.refreshChild(ctx, state, id, frames); err != nil {
 				return err
 			}
 		}
@@ -504,17 +504,17 @@ func (runtime *WorkflowRuntime) refreshWaitingChildren(
 	return nil
 }
 
-func (runtime *WorkflowRuntime) refreshChild(
+func (wr *WorkflowRuntime) refreshChild(
 	ctx context.Context,
 	state *workflowSnapshotState,
 	nodeID string,
 	frames *[]Frame,
 ) error {
-	if isNilWorkflowValue(runtime.children) {
+	if isNilWorkflowValue(wr.children) {
 		return ErrWorkflowHandlerNotFound
 	}
 	node := state.Nodes[nodeID]
-	attachment, err := runtime.children.Attach(ctx, node.ChildCallID, 0, 1)
+	attachment, err := wr.children.Attach(ctx, node.ChildCallID, 0, 1)
 	if errors.Is(err, ErrNotFound) {
 		return nil
 	}
@@ -547,8 +547,8 @@ func (runtime *WorkflowRuntime) refreshChild(
 	return nil
 }
 
-func (runtime *WorkflowRuntime) nextWakeAt(state *workflowSnapshotState) time.Time {
-	wakeAt := normalizeReadyAt(runtime.now().UTC().Add(runtime.pollInterval))
+func (wr *WorkflowRuntime) nextWakeAt(state *workflowSnapshotState) time.Time {
+	wakeAt := normalizeReadyAt(wr.now().UTC().Add(wr.pollInterval))
 	for _, node := range state.Nodes {
 		if node.Kind == WorkflowNodeTimer && node.Status == WorkflowNodeWaiting &&
 			(wakeAt.IsZero() || node.ReadyAt.Before(wakeAt)) {
@@ -558,8 +558,8 @@ func (runtime *WorkflowRuntime) nextWakeAt(state *workflowSnapshotState) time.Ti
 	return wakeAt
 }
 
-func (runtime *WorkflowRuntime) release(ctx context.Context, lease Lease) {
-	_ = runtime.leases.Release(ctx, LeaseRequest{
+func (wr *WorkflowRuntime) release(ctx context.Context, lease Lease) {
+	_ = wr.leases.Release(ctx, LeaseRequest{
 		CallID:   lease.Snapshot.CallID(),
 		Revision: lease.Snapshot.Revision(),
 		Fence:    lease.Snapshot.Fence(),

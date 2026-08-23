@@ -62,47 +62,47 @@ func NewManager() *Manager {
 }
 
 // Stage adds one activated, strictly newer epoch.
-func (manager *Manager) Stage(snapshot Snapshot) error {
-	if manager == nil {
+func (m *Manager) Stage(snapshot Snapshot) error {
+	if m == nil {
 		return fmt.Errorf("%w: manager is nil", ErrInvalidEpoch)
 	}
 	epoch := snapshot.Epoch()
 	if epoch == 0 || snapshot.Hash() == "" {
 		return fmt.Errorf("%w: snapshot is not activated", ErrInvalidEpoch)
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	if epoch <= manager.maximum {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if epoch <= m.maximum {
 		return fmt.Errorf(
 			"%w: epoch %d is not newer than %d",
 			ErrInvalidEpoch,
 			epoch,
-			manager.maximum,
+			m.maximum,
 		)
 	}
 	idle := make(chan struct{})
 	close(idle)
-	manager.epochs[epoch] = &managedEpoch{
+	m.epochs[epoch] = &managedEpoch{
 		snapshot: snapshot,
 		state:    EpochStaging,
 		idle:     idle,
 	}
-	manager.maximum = epoch
+	m.maximum = epoch
 	return nil
 }
 
 // Ready promotes a staging epoch to receive new call leases.
-func (manager *Manager) Ready(epoch uint64) error {
-	if manager == nil {
+func (m *Manager) Ready(epoch uint64) error {
+	if m == nil {
 		return fmt.Errorf("%w: manager is nil", ErrEpochNotFound)
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	entry, exists := manager.epochs[epoch]
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, exists := m.epochs[epoch]
 	if !exists {
 		return fmt.Errorf("%w: epoch %d", ErrEpochNotFound, epoch)
 	}
-	if entry.state != EpochStaging || epoch <= manager.active {
+	if entry.state != EpochStaging || epoch <= m.active {
 		return fmt.Errorf(
 			"%w: epoch %d cannot become ready from %q",
 			ErrInvalidEpochTransition,
@@ -118,7 +118,7 @@ func (manager *Manager) Ready(epoch uint64) error {
 		if weight.BasisPoints == 0 || weight.Epoch == epoch {
 			continue
 		}
-		referenced, available := manager.epochs[weight.Epoch]
+		referenced, available := m.epochs[weight.Epoch]
 		if !available || referenced.state != EpochReady {
 			return fmt.Errorf(
 				"%w: traffic epoch %d is not ready",
@@ -128,19 +128,19 @@ func (manager *Manager) Ready(epoch uint64) error {
 		}
 	}
 	entry.state = EpochReady
-	manager.active = epoch
-	manager.traffic = selector
+	m.active = epoch
+	m.traffic = selector
 	return nil
 }
 
 // Drain moves an old Ready epoch to Draining only after a newer epoch is Ready.
-func (manager *Manager) Drain(epoch uint64) error {
-	if manager == nil {
+func (m *Manager) Drain(epoch uint64) error {
+	if m == nil {
 		return fmt.Errorf("%w: manager is nil", ErrEpochNotFound)
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	entry, exists := manager.epochs[epoch]
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, exists := m.epochs[epoch]
 	if !exists {
 		return fmt.Errorf("%w: epoch %d", ErrEpochNotFound, epoch)
 	}
@@ -152,9 +152,9 @@ func (manager *Manager) Drain(epoch uint64) error {
 			entry.state,
 		)
 	}
-	successor, successorExists := manager.epochs[manager.active]
+	successor, successorExists := m.epochs[m.active]
 	if !successorExists ||
-		manager.active <= epoch ||
+		m.active <= epoch ||
 		successor.state != EpochReady {
 		return fmt.Errorf(
 			"%w: epoch %d has no newer ready epoch",
@@ -162,12 +162,12 @@ func (manager *Manager) Drain(epoch uint64) error {
 			epoch,
 		)
 	}
-	if manager.traffic != nil && manager.traffic.BasisPoints(epoch) != 0 {
+	if m.traffic != nil && m.traffic.BasisPoints(epoch) != 0 {
 		return fmt.Errorf(
 			"%w: epoch %d has %d basis points",
 			ErrEpochHasTraffic,
 			epoch,
-			manager.traffic.BasisPoints(epoch),
+			m.traffic.BasisPoints(epoch),
 		)
 	}
 	entry.state = EpochDraining
@@ -175,29 +175,29 @@ func (manager *Manager) Drain(epoch uint64) error {
 }
 
 // Acquire leases the current Ready epoch for one logical call.
-func (manager *Manager) Acquire() (*Lease, error) {
-	return manager.acquire("")
+func (m *Manager) Acquire() (*Lease, error) {
+	return m.acquire("")
 }
 
 // AcquireKey leases the Ready epoch selected by stable weighted rendezvous.
-func (manager *Manager) AcquireKey(routingKey string) (*Lease, error) {
-	return manager.acquire(routingKey)
+func (m *Manager) AcquireKey(routingKey string) (*Lease, error) {
+	return m.acquire(routingKey)
 }
 
-func (manager *Manager) acquire(routingKey string) (*Lease, error) {
-	if manager == nil {
+func (m *Manager) acquire(routingKey string) (*Lease, error) {
+	if m == nil {
 		return nil, fmt.Errorf("%w: manager is nil", ErrNoReadyEpoch)
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	if manager.traffic == nil {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.traffic == nil {
 		return nil, ErrNoReadyEpoch
 	}
-	epoch, err := manager.traffic.Select(routingKey)
+	epoch, err := m.traffic.Select(routingKey)
 	if err != nil {
 		return nil, errors.Join(ErrNoReadyEpoch, err)
 	}
-	entry, exists := manager.epochs[epoch]
+	entry, exists := m.epochs[epoch]
 	if !exists || entry.state != EpochReady {
 		return nil, ErrNoReadyEpoch
 	}
@@ -206,23 +206,23 @@ func (manager *Manager) acquire(routingKey string) (*Lease, error) {
 	}
 	entry.leases++
 	return &Lease{
-		manager:  manager,
+		manager:  m,
 		epoch:    epoch,
 		snapshot: entry.snapshot,
 	}, nil
 }
 
 // Drainable returns every non-active Ready epoch with zero current weight.
-func (manager *Manager) Drainable() []uint64 {
-	if manager == nil {
+func (m *Manager) Drainable() []uint64 {
+	if m == nil {
 		return nil
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	epochs := make([]uint64, 0)
-	for epoch, entry := range manager.epochs {
-		if epoch == manager.active || entry.state != EpochReady ||
-			manager.traffic != nil && manager.traffic.BasisPoints(epoch) != 0 {
+	for epoch, entry := range m.epochs {
+		if epoch == m.active || entry.state != EpochReady ||
+			m.traffic != nil && m.traffic.BasisPoints(epoch) != 0 {
 			continue
 		}
 		epochs = append(epochs, epoch)
@@ -233,13 +233,13 @@ func (manager *Manager) Drainable() []uint64 {
 
 // DrainForShutdown removes any Ready epoch after its owning runtime has
 // stopped accepting calls. Unlike Drain, it is not a rollout operation.
-func (manager *Manager) DrainForShutdown(epoch uint64) error {
-	if manager == nil {
+func (m *Manager) DrainForShutdown(epoch uint64) error {
+	if m == nil {
 		return fmt.Errorf("%w: manager is nil", ErrEpochNotFound)
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	entry, exists := manager.epochs[epoch]
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, exists := m.epochs[epoch]
 	if !exists {
 		return fmt.Errorf("%w: epoch %d", ErrEpochNotFound, epoch)
 	}
@@ -247,39 +247,39 @@ func (manager *Manager) DrainForShutdown(epoch uint64) error {
 		return fmt.Errorf("%w: epoch %d cannot drain for shutdown from %q", ErrInvalidEpochTransition, epoch, entry.state)
 	}
 	entry.state = EpochDraining
-	if manager.active == epoch {
-		manager.active = 0
-		manager.traffic = nil
+	if m.active == epoch {
+		m.active = 0
+		m.traffic = nil
 	}
 	return nil
 }
 
 // Stop waits for a Draining epoch's leases and marks it Stopped.
-func (manager *Manager) Stop(ctx context.Context, epoch uint64) error {
-	if manager == nil {
+func (m *Manager) Stop(ctx context.Context, epoch uint64) error {
+	if m == nil {
 		return fmt.Errorf("%w: manager is nil", ErrEpochNotFound)
 	}
 	if ctx == nil {
 		return fmt.Errorf("%w: context is nil", ErrInvalidEpochTransition)
 	}
-	manager.mu.Lock()
-	entry, exists := manager.epochs[epoch]
+	m.mu.Lock()
+	entry, exists := m.epochs[epoch]
 	if !exists {
-		manager.mu.Unlock()
+		m.mu.Unlock()
 		return fmt.Errorf("%w: epoch %d", ErrEpochNotFound, epoch)
 	}
 	switch entry.state {
 	case EpochStopped:
-		manager.mu.Unlock()
+		m.mu.Unlock()
 		return nil
 	case EpochDraining:
 	default:
 		state := entry.state
-		manager.mu.Unlock()
+		m.mu.Unlock()
 		return fmt.Errorf("%w: epoch %d cannot stop from %q", ErrInvalidEpochTransition, epoch, state)
 	}
 	idle := entry.idle
-	manager.mu.Unlock()
+	m.mu.Unlock()
 
 	select {
 	case <-idle:
@@ -287,9 +287,9 @@ func (manager *Manager) Stop(ctx context.Context, epoch uint64) error {
 		return context.Cause(ctx)
 	}
 
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	entry = manager.epochs[epoch]
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry = m.epochs[epoch]
 	if entry.state == EpochStopped {
 		return nil
 	}
@@ -301,13 +301,13 @@ func (manager *Manager) Stop(ctx context.Context, epoch uint64) error {
 }
 
 // State returns the current lifecycle state for one epoch.
-func (manager *Manager) State(epoch uint64) (EpochState, bool) {
-	if manager == nil {
+func (m *Manager) State(epoch uint64) (EpochState, bool) {
+	if m == nil {
 		return "", false
 	}
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	entry, exists := manager.epochs[epoch]
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, exists := m.epochs[epoch]
 	if !exists {
 		return "", false
 	}
@@ -348,10 +348,10 @@ func (lease *Lease) Release() {
 	})
 }
 
-func (manager *Manager) release(epoch uint64) {
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	entry, exists := manager.epochs[epoch]
+func (m *Manager) release(epoch uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, exists := m.epochs[epoch]
 	if !exists || entry.leases == 0 {
 		return
 	}

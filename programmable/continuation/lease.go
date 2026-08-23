@@ -34,12 +34,12 @@ type ClaimRequest struct {
 }
 
 // Validate checks stable identity and bounded lease duration.
-func (request ClaimRequest) Validate() error {
-	if !validIdentity(request.CallID.value) ||
-		request.ExpectedRevision == 0 ||
-		!validLeaseOwner(request.OwnerID) ||
-		request.LeaseDuration <= 0 ||
-		request.LeaseDuration > maxLeaseDuration {
+func (r ClaimRequest) Validate() error {
+	if !validIdentity(r.CallID.value) ||
+		r.ExpectedRevision == 0 ||
+		!validLeaseOwner(r.OwnerID) ||
+		r.LeaseDuration <= 0 ||
+		r.LeaseDuration > maxLeaseDuration {
 		return ErrInvalidStore
 	}
 	return nil
@@ -62,16 +62,16 @@ type LeaseRequest struct {
 }
 
 // Validate checks claim identity. Renew requests additionally require duration.
-func (request LeaseRequest) Validate(renew bool) error {
-	if !validIdentity(request.CallID.value) ||
-		request.Revision == 0 ||
-		request.Fence == 0 ||
-		!validLeaseOwner(request.OwnerID) {
+func (r LeaseRequest) Validate(renew bool) error {
+	if !validIdentity(r.CallID.value) ||
+		r.Revision == 0 ||
+		r.Fence == 0 ||
+		!validLeaseOwner(r.OwnerID) {
 		return ErrInvalidStore
 	}
 	if renew &&
-		(request.LeaseDuration <= 0 ||
-			request.LeaseDuration > maxLeaseDuration) {
+		(r.LeaseDuration <= 0 ||
+			r.LeaseDuration > maxLeaseDuration) {
 		return ErrInvalidStore
 	}
 	return nil
@@ -97,8 +97,8 @@ func validLeaseOwner(owner string) bool {
 		strings.TrimSpace(owner) != owner {
 		return false
 	}
-	for _, character := range owner {
-		if unicode.IsControl(character) {
+	for _, r := range owner {
+		if unicode.IsControl(r) {
 			return false
 		}
 	}

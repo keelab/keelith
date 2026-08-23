@@ -62,14 +62,14 @@ func (fn ObserverFunc) Observe(ctx context.Context, event Event) {
 	fn(ctx, event)
 }
 
-func (runtime *Runtime) observe(ctx context.Context, event Event) {
-	if runtime == nil || isNilObserver(runtime.observer) {
+func (r *Runtime) observe(ctx context.Context, event Event) {
+	if r == nil || isNilObserver(r.observer) {
 		return
 	}
 	defer func() {
 		_ = recover()
 	}()
-	runtime.observer.Observe(ctx, event)
+	r.observer.Observe(ctx, event)
 }
 
 func isNilObserver(observer Observer) bool {

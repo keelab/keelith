@@ -41,7 +41,6 @@ type ComponentOption[T any] interface {
 
 type componentOptionFunc[T any] func(*componentOptions[T]) error
 
-//nolint:unused // called through ComponentOption implementations; golangci-lint can miss the generic interface dispatch
 func (fn componentOptionFunc[T]) applyComponent(
 	options *componentOptions[T],
 ) error {

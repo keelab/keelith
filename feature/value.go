@@ -62,36 +62,36 @@ func FloatValue(value float64) (Value, error) {
 }
 
 // Kind returns the concrete value kind.
-func (value Value) Kind() Kind { return value.kind }
+func (v Value) Kind() Kind { return v.kind }
 
 // Boolean returns the Boolean value when its kind matches.
-func (value Value) Boolean() (bool, bool) {
-	return value.boolean, value.kind == KindBoolean
+func (v Value) Boolean() (bool, bool) {
+	return v.boolean, v.kind == KindBoolean
 }
 
 // String returns the String value when its kind matches.
-func (value Value) String() (string, bool) {
-	return value.text, value.kind == KindString
+func (v Value) String() (string, bool) {
+	return v.text, v.kind == KindString
 }
 
 // Integer returns the Integer value when its kind matches.
-func (value Value) Integer() (int64, bool) {
-	return value.integer, value.kind == KindInteger
+func (v Value) Integer() (int64, bool) {
+	return v.integer, v.kind == KindInteger
 }
 
 // Float returns the Float value when its kind matches.
-func (value Value) Float() (float64, bool) {
-	return value.decimal, value.kind == KindFloat
+func (v Value) Float() (float64, bool) {
+	return v.decimal, v.kind == KindFloat
 }
 
-func (value Value) valid() bool {
-	switch value.kind {
+func (v Value) valid() bool {
+	switch v.kind {
 	case KindBoolean, KindInteger:
 		return true
 	case KindString:
-		return len(value.text) <= maxStringValueBytes && utf8.ValidString(value.text)
+		return len(v.text) <= maxStringValueBytes && utf8.ValidString(v.text)
 	case KindFloat:
-		return !math.IsNaN(value.decimal) && !math.IsInf(value.decimal, 0)
+		return !math.IsNaN(v.decimal) && !math.IsInf(v.decimal, 0)
 	default:
 		return false
 	}

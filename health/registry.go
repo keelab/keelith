@@ -14,14 +14,14 @@ const applicationCheckName = "app"
 
 // Registry combines application phase with named health contributors.
 type Registry struct {
-	mu              sync.RWMutex                // mu is the read-write mutex for the registry.
-	phase           Phase                       // phase is the current application phase.
-	startupComplete bool                        // startupComplete is whether the application startup is complete.
-	contributors    map[Kind]map[string]Checker // contributors is the map of health contributors by kind and name.
-	checkTimeout    time.Duration               // checkTimeout is the timeout for health checks.
-	cacheTTL        time.Duration               // cacheTTL is the time-to-live for cached reports.
-	generation      uint64                      // generation is the cache generation number.
-	cache           map[Kind]cachedReport       // cache is the map of cached reports by kind.
+	mu              sync.RWMutex
+	phase           Phase
+	startupComplete bool
+	contributors    map[Kind]map[string]Checker
+	checkTimeout    time.Duration
+	cacheTTL        time.Duration
+	generation      uint64
+	cache           map[Kind]cachedReport
 }
 
 // NewRegistry creates an isolated Registry in PhaseNew.
@@ -188,7 +188,6 @@ func (r *Registry) Phase() Phase {
 }
 
 func (r *Registry) advance(next Phase) {
-
 	if r == nil {
 		return
 	}
@@ -205,7 +204,6 @@ func (r *Registry) advance(next Phase) {
 }
 
 func (r *Registry) storeCached(kind Kind, generation uint64, ttl time.Duration, report Report) {
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.generation != generation || r.cacheTTL != ttl {

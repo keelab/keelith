@@ -14,7 +14,6 @@ const (
 
 // RegistryOption configures bounded health evaluation.
 type RegistryOption interface {
-	// applyRegistry applies the option to the registry options.
 	applyRegistry(*registryOptions) error
 }
 
@@ -25,8 +24,8 @@ func (f registryOptionFunc) applyRegistry(options *registryOptions) error {
 }
 
 type registryOptions struct {
-	checkTimeout time.Duration // checkTimeout is the maximum duration for a single health check.
-	cacheTTL     time.Duration // cacheTTL is the maximum duration for a cached Report.
+	checkTimeout time.Duration
+	cacheTTL     time.Duration
 }
 
 // WithCheckTimeout bounds one aggregate health evaluation.
@@ -52,7 +51,7 @@ func WithCacheTTL(ttl time.Duration) RegistryOption {
 }
 
 type cachedReport struct {
-	report     Report    // report is the cached Report.
-	expiresAt  time.Time // expiresAt is the time at which the cache expires.
-	generation uint64    // generation is the cache generation number.
+	report     Report
+	expiresAt  time.Time
+	generation uint64
 }

@@ -19,8 +19,8 @@ type Option interface {
 
 type optionFunc func(*managerOptions) error
 
-func (function optionFunc) apply(options *managerOptions) error {
-	return function(options)
+func (f optionFunc) apply(options *managerOptions) error {
+	return f(options)
 }
 
 type managerOptions struct {
@@ -172,30 +172,30 @@ func New(optionList ...Option) (*Manager, error) {
 
 // Load reads every Source, merges them, and atomically publishes a valid
 // Snapshot.
-func (manager *Manager) Load(ctx context.Context) (Snapshot, error) {
+func (m *Manager) Load(ctx context.Context) (Snapshot, error) {
 	if ctx == nil {
 		return Snapshot{}, fmt.Errorf("%w: nil context", ErrInvalidOption)
 	}
-	snapshots, err := manager.loadSources(ctx)
+	snapshots, err := m.loadSources(ctx)
 	if err != nil {
 		return Snapshot{}, err
 	}
 	merged, err := Merge(snapshots...)
 	if err != nil {
-		manager.recordRejected(err)
+		m.recordRejected(err)
 		return Snapshot{}, err
 	}
-	published, _, err := manager.publish(ctx, merged)
+	published, _, err := m.publish(ctx, merged)
 	return published, err
 }
 
 // Watch establishes all Source watchers before loading and then processes
 // complete snapshot updates until ctx ends or a watcher fails.
-func (manager *Manager) Watch(ctx context.Context) error {
-	return manager.watch(ctx, nil)
+func (m *Manager) Watch(ctx context.Context) error {
+	return m.watch(ctx, nil)
 }
 
-func (manager *Manager) watch(ctx context.Context, ready chan<- error) (result error) {
+func (m *Manager) watch(ctx context.Context, ready chan<- error) (result error) {
 	readySent := false
 	notifyReady := func(err error) {
 		if readySent {
@@ -214,14 +214,14 @@ func (manager *Manager) watch(ctx context.Context, ready chan<- error) (result e
 	if ctx == nil {
 		return fmt.Errorf("%w: nil context", ErrInvalidOption)
 	}
-	if !manager.beginWatch() {
+	if !m.beginWatch() {
 		return ErrAlreadyWatching
 	}
-	defer manager.endWatch()
+	defer m.endWatch()
 
 	watchContext, cancel := context.WithCancel(ctx)
-	watchers := make([]Watcher, 0, len(manager.sources))
-	for index, source := range manager.sources {
+	watchers := make([]Watcher, 0, len(m.sources))
+	for index, source := range m.sources {
 		watcher, err := source.Watch(watchContext)
 		if err != nil {
 			cancel()
@@ -248,16 +248,16 @@ func (manager *Manager) watch(ctx context.Context, ready chan<- error) (result e
 		readers.Wait()
 	}()
 
-	sourceSnapshots, err := manager.loadSources(watchContext)
+	sourceSnapshots, err := m.loadSources(watchContext)
 	if err != nil {
 		return err
 	}
 	merged, err := Merge(sourceSnapshots...)
 	if err != nil {
-		manager.recordRejected(err)
+		m.recordRejected(err)
 		return err
 	}
-	if _, _, err := manager.publish(watchContext, merged); err != nil {
+	if _, _, err := m.publish(watchContext, merged); err != nil {
 		return err
 	}
 	notifyReady(nil)
@@ -278,10 +278,10 @@ func (manager *Manager) watch(ctx context.Context, ready chan<- error) (result e
 			candidateSources[event.index] = event.snapshot
 			candidate, mergeErr := Merge(candidateSources...)
 			if mergeErr != nil {
-				manager.recordRejected(mergeErr)
+				m.recordRejected(mergeErr)
 				continue
 			}
-			_, changed, publishErr := manager.publish(watchContext, candidate)
+			_, changed, publishErr := m.publish(watchContext, candidate)
 			if publishErr != nil {
 				continue
 			}
@@ -293,8 +293,8 @@ func (manager *Manager) watch(ctx context.Context, ready chan<- error) (result e
 }
 
 // Current returns a deep copy of the current complete Snapshot.
-func (manager *Manager) Current() (Snapshot, bool) {
-	published := manager.current.Load()
+func (m *Manager) Current() (Snapshot, bool) {
+	published := m.current.Load()
 	if published == nil {
 		return Snapshot{}, false
 	}
@@ -302,34 +302,34 @@ func (manager *Manager) Current() (Snapshot, bool) {
 }
 
 // Subscribe registers a uniquely named Subscriber.
-func (manager *Manager) Subscribe(name string, subscriber Subscriber) error {
+func (m *Manager) Subscribe(name string, subscriber Subscriber) error {
 	normalizedName := strings.TrimSpace(name)
 	if normalizedName == "" || subscriber == nil {
 		return fmt.Errorf("%w: subscriber name or function is empty", ErrInvalidOption)
 	}
-	manager.subscriberMu.Lock()
-	defer manager.subscriberMu.Unlock()
-	if _, duplicate := manager.subscribers[normalizedName]; duplicate {
+	m.subscriberMu.Lock()
+	defer m.subscriberMu.Unlock()
+	if _, duplicate := m.subscribers[normalizedName]; duplicate {
 		return fmt.Errorf("%w: %s", ErrDuplicateSubscriber, normalizedName)
 	}
-	manager.subscribers[normalizedName] = subscriber
+	m.subscribers[normalizedName] = subscriber
 	return nil
 }
 
 // Unsubscribe removes a Subscriber and its status.
-func (manager *Manager) Unsubscribe(name string) {
-	manager.subscriberMu.Lock()
-	defer manager.subscriberMu.Unlock()
-	delete(manager.subscribers, strings.TrimSpace(name))
-	delete(manager.statuses, strings.TrimSpace(name))
+func (m *Manager) Unsubscribe(name string) {
+	m.subscriberMu.Lock()
+	defer m.subscriberMu.Unlock()
+	delete(m.subscribers, strings.TrimSpace(name))
+	delete(m.statuses, strings.TrimSpace(name))
 }
 
 // SubscriberStatuses returns statuses in lexical name order.
-func (manager *Manager) SubscriberStatuses() []SubscriberStatus {
-	manager.subscriberMu.Lock()
-	defer manager.subscriberMu.Unlock()
-	statuses := make([]SubscriberStatus, 0, len(manager.statuses))
-	for _, status := range manager.statuses {
+func (m *Manager) SubscriberStatuses() []SubscriberStatus {
+	m.subscriberMu.Lock()
+	defer m.subscriberMu.Unlock()
+	statuses := make([]SubscriberStatus, 0, len(m.statuses))
+	for _, status := range m.statuses {
 		statuses = append(statuses, status)
 	}
 	sort.Slice(statuses, func(first, second int) bool {
@@ -339,15 +339,15 @@ func (manager *Manager) SubscriberStatuses() []SubscriberStatus {
 }
 
 // LastRejected returns the latest rejected snapshot error for diagnostics.
-func (manager *Manager) LastRejected() string {
-	manager.rejectedMu.Lock()
-	defer manager.rejectedMu.Unlock()
-	return manager.lastRejected
+func (m *Manager) LastRejected() string {
+	m.rejectedMu.Lock()
+	defer m.rejectedMu.Unlock()
+	return m.lastRejected
 }
 
-func (manager *Manager) loadSources(ctx context.Context) ([]Snapshot, error) {
-	snapshots := make([]Snapshot, len(manager.sources))
-	for index, source := range manager.sources {
+func (m *Manager) loadSources(ctx context.Context) ([]Snapshot, error) {
+	snapshots := make([]Snapshot, len(m.sources))
+	for index, source := range m.sources {
 		if cause := context.Cause(ctx); cause != nil {
 			return nil, cause
 		}
@@ -363,46 +363,46 @@ func (manager *Manager) loadSources(ctx context.Context) ([]Snapshot, error) {
 	return snapshots, nil
 }
 
-func (manager *Manager) publish(
+func (m *Manager) publish(
 	ctx context.Context,
 	candidate Snapshot,
 ) (Snapshot, bool, error) {
-	manager.updateMu.Lock()
-	defer manager.updateMu.Unlock()
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
 
-	if current := manager.current.Load(); current != nil &&
+	if current := m.current.Load(); current != nil &&
 		current.snapshot.revision == candidate.revision {
 		return current.snapshot.Clone(), false, nil
 	}
-	if manager.unknownPolicy == UnknownReject {
-		if err := manager.schema.validate(candidate.values); err != nil {
-			manager.recordRejected(err)
+	if m.unknownPolicy == UnknownReject {
+		if err := m.schema.validate(candidate.values); err != nil {
+			m.recordRejected(err)
 			return Snapshot{}, false, err
 		}
 	}
-	for index, validator := range manager.validators {
+	for index, validator := range m.validators {
 		if err := validator(candidate.Clone()); err != nil {
 			wrapped := fmt.Errorf("%w: validator %d: %w", ErrValidation, index, err)
-			manager.recordRejected(wrapped)
+			m.recordRejected(wrapped)
 			return Snapshot{}, false, wrapped
 		}
 	}
 
 	stored := candidate.Clone()
-	manager.current.Store(&publishedSnapshot{snapshot: stored})
-	manager.notifySubscribers(ctx, stored)
+	m.current.Store(&publishedSnapshot{snapshot: stored})
+	m.notifySubscribers(ctx, stored)
 	return stored.Clone(), true, nil
 }
 
-func (manager *Manager) notifySubscribers(ctx context.Context, snapshot Snapshot) {
-	manager.subscriberMu.Lock()
-	names := make([]string, 0, len(manager.subscribers))
-	subscribers := make(map[string]Subscriber, len(manager.subscribers))
-	for name, subscriber := range manager.subscribers {
+func (m *Manager) notifySubscribers(ctx context.Context, snapshot Snapshot) {
+	m.subscriberMu.Lock()
+	names := make([]string, 0, len(m.subscribers))
+	subscribers := make(map[string]Subscriber, len(m.subscribers))
+	for name, subscriber := range m.subscribers {
 		names = append(names, name)
 		subscribers[name] = subscriber
 	}
-	manager.subscriberMu.Unlock()
+	m.subscriberMu.Unlock()
 	sort.Strings(names)
 
 	for _, name := range names {
@@ -416,37 +416,37 @@ func (manager *Manager) notifySubscribers(ctx context.Context, snapshot Snapshot
 			status.RestartRequired = errors.Is(err, ErrRestartRequired)
 			status.LastError = err.Error()
 		}
-		manager.subscriberMu.Lock()
-		if manager.subscribers[name] != nil {
-			manager.statuses[name] = status
+		m.subscriberMu.Lock()
+		if m.subscribers[name] != nil {
+			m.statuses[name] = status
 		}
-		manager.subscriberMu.Unlock()
+		m.subscriberMu.Unlock()
 	}
 }
 
-func (manager *Manager) recordRejected(err error) {
+func (m *Manager) recordRejected(err error) {
 	if err == nil {
 		return
 	}
-	manager.rejectedMu.Lock()
-	manager.lastRejected = err.Error()
-	manager.rejectedMu.Unlock()
+	m.rejectedMu.Lock()
+	m.lastRejected = err.Error()
+	m.rejectedMu.Unlock()
 }
 
-func (manager *Manager) beginWatch() bool {
-	manager.watchMu.Lock()
-	defer manager.watchMu.Unlock()
-	if manager.watching {
+func (m *Manager) beginWatch() bool {
+	m.watchMu.Lock()
+	defer m.watchMu.Unlock()
+	if m.watching {
 		return false
 	}
-	manager.watching = true
+	m.watching = true
 	return true
 }
 
-func (manager *Manager) endWatch() {
-	manager.watchMu.Lock()
-	manager.watching = false
-	manager.watchMu.Unlock()
+func (m *Manager) endWatch() {
+	m.watchMu.Lock()
+	m.watching = false
+	m.watchMu.Unlock()
 }
 
 type watchEvent struct {

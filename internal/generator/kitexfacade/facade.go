@@ -21,7 +21,7 @@ const (
 
 	kitexCallOptionPath       = "github.com/cloudwego/kitex/client/callopt"
 	kitexStreamCallOptionPath = "github.com/cloudwego/kitex/client/callopt/streamcall"
-	keelithKitexProfilePath   = "anniext.cn/keelith/keelith/x/transport/kitex"
+	keelithKitexProfilePath   = "github.com/keelab/keelith/x/transport/kitex"
 )
 
 // Result describes one generated Kitex client facade.

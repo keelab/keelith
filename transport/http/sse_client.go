@@ -28,10 +28,10 @@ type SSEClientOption interface {
 
 type sseClientOptionFunc func(*sseClientOptions) error
 
-func (function sseClientOptionFunc) applySSEClient(
+func (f sseClientOptionFunc) applySSEClient(
 	options *sseClientOptions,
 ) error {
-	return function(options)
+	return f(options)
 }
 
 type sseClientOptions struct {

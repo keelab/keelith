@@ -38,8 +38,8 @@ type ClientOption interface {
 
 type clientOptionFunc func(*clientOptions) error
 
-func (function clientOptionFunc) applyClient(options *clientOptions) error {
-	return function(options)
+func (f clientOptionFunc) applyClient(options *clientOptions) error {
+	return f(options)
 }
 
 type clientOptions struct {

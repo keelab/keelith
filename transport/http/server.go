@@ -39,8 +39,8 @@ type ServerOption interface {
 
 type serverOptionFunc func(*serverOptions) error
 
-func (function serverOptionFunc) applyServer(options *serverOptions) error {
-	return function(options)
+func (f serverOptionFunc) applyServer(options *serverOptions) error {
+	return f(options)
 }
 
 // HandlerWrapper installs one application-owned outer HTTP boundary around

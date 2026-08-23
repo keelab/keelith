@@ -54,10 +54,10 @@ type ProtoDecodeOption interface {
 
 type protoDecodeOptionFunc func(*protoDecodeOptions) error
 
-func (function protoDecodeOptionFunc) applyProtoDecode(
+func (f protoDecodeOptionFunc) applyProtoDecode(
 	options *protoDecodeOptions,
 ) error {
-	return function(options)
+	return f(options)
 }
 
 type protoDecodeOptions struct {

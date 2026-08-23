@@ -110,10 +110,10 @@ type ContinuationRouteOption interface {
 
 type continuationRouteOptionFunc func(*continuationRouteOptions) error
 
-func (function continuationRouteOptionFunc) applyContinuationRoute(
+func (f continuationRouteOptionFunc) applyContinuationRoute(
 	options *continuationRouteOptions,
 ) error {
-	return function(options)
+	return f(options)
 }
 
 type continuationRouteOptions struct {

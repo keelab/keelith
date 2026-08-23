@@ -27,8 +27,8 @@ type RouterOption interface {
 
 type routerOptionFunc func(*routerOptions) error
 
-func (function routerOptionFunc) applyRouter(options *routerOptions) error {
-	return function(options)
+func (f routerOptionFunc) applyRouter(options *routerOptions) error {
+	return f(options)
 }
 
 type routerOptions struct {
@@ -112,8 +112,8 @@ type RouteOption interface {
 
 type routeOptionFunc func(*routeOptions) error
 
-func (function routeOptionFunc) applyRoute(options *routeOptions) error {
-	return function(options)
+func (f routeOptionFunc) applyRoute(options *routeOptions) error {
+	return f(options)
 }
 
 type routeOptions struct {

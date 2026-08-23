@@ -175,7 +175,12 @@ func NewDistributedLimiter(config DistributedConfig) (*DistributedLimiter, error
 }
 
 // Acquire checks shared rate and obtains a local concurrency permit.
-func (l *DistributedLimiter) Acquire(ctx context.Context, target operation.Operation, request any, config policy.RateLimitPolicy) (*DistributedPermit, error) {
+func (l *DistributedLimiter) Acquire(
+	ctx context.Context,
+	target operation.Operation,
+	request any,
+	config policy.RateLimitPolicy,
+) (*DistributedPermit, error) {
 	if l == nil || ctx == nil {
 		return nil, fmt.Errorf("%w: limiter or context is nil", ErrInvalidOption)
 	}
@@ -305,7 +310,12 @@ func (l *DistributedLimiter) LocalDescriptions() []Description {
 	return l.local.Describe()
 }
 
-func (l *DistributedLimiter) acquireLocal(key string, config policy.RateLimitPolicy, decision Decision, degradation Degradation) (*DistributedPermit, error) {
+func (l *DistributedLimiter) acquireLocal(
+	key string,
+	config policy.RateLimitPolicy,
+	decision Decision,
+	degradation Degradation,
+) (*DistributedPermit, error) {
 	if !config.Enabled {
 		l.recordAccepted()
 		return &DistributedPermit{

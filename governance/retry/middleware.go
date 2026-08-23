@@ -187,7 +187,11 @@ func isStreaming(kind operation.Kind) bool {
 }
 
 func validate(value policy.RetryPolicy) error {
-	if value.MaxAttempts < 2 || value.BackoffMin <= 0 || value.BackoffMax < value.BackoffMin || value.BudgetRatio <= 0 || value.BudgetRatio > 1 {
+	if value.MaxAttempts < 2 ||
+		value.BackoffMin <= 0 ||
+		value.BackoffMax < value.BackoffMin ||
+		value.BudgetRatio <= 0 ||
+		value.BudgetRatio > 1 {
 		return fmt.Errorf("%w: resolved retry policy is invalid", policy.ErrInvalidPolicy)
 	}
 	return nil

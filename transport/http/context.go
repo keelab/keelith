@@ -358,7 +358,7 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 		return nil
 	}
 	if err == nil {
-		return fmt.Errorf("http: request contains multiple JSON values")
+		return fmt.Errorf("http: request contains multiple json values")
 	}
 	return err
 }

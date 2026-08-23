@@ -177,7 +177,7 @@ func decodeIdempotencyRule(payload []byte) (idempotencyRule, error) {
 		result.ProcessingTTLSecond > 15*60 ||
 		result.ResultTTLSecond < 60 ||
 		result.ResultTTLSecond > 24*60*60 {
-		return idempotencyRule{}, fmt.Errorf("namespace, metadata key, or TTL is invalid")
+		return idempotencyRule{}, fmt.Errorf("namespace, metadata key, or ttl is invalid")
 	}
 	return result, nil
 }
@@ -1007,13 +1007,13 @@ func validateHTTPRule(rule httpRule) error {
 	switch rule.Method {
 	case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS":
 	default:
-		return fmt.Errorf("HTTP method %q is unsupported", rule.Method)
+		return fmt.Errorf("http method %q is unsupported", rule.Method)
 	}
 	if rule.Path == "" || !strings.HasPrefix(rule.Path, "/") {
-		return fmt.Errorf("HTTP rule needs an absolute path")
+		return fmt.Errorf("http rule needs an absolute path")
 	}
 	if strings.ContainsAny(rule.Path, "?#\r\n") {
-		return fmt.Errorf("HTTP path %q contains an unsafe character", rule.Path)
+		return fmt.Errorf("http path %q contains an unsafe character", rule.Path)
 	}
 	if rule.Body != "" && rule.Body != "*" && !validHTTPBodyFieldPath(rule.Body) {
 		return fmt.Errorf(
@@ -1030,7 +1030,7 @@ func validateHTTPRule(rule httpRule) error {
 	}
 	if (rule.Method == "GET" || rule.Method == "DELETE" ||
 		rule.Method == "HEAD") && rule.Body != "" {
-		return fmt.Errorf("%s HTTP rule cannot have a body", rule.Method)
+		return fmt.Errorf("%s http rule cannot have a body", rule.Method)
 	}
 	return nil
 }
@@ -1073,7 +1073,7 @@ func httpBodyFieldPath(
 	path string,
 ) ([]protoreflect.FieldDescriptor, error) {
 	if message == nil || !validHTTPBodyFieldPath(path) {
-		return nil, fmt.Errorf("HTTP body field path %q is invalid", path)
+		return nil, fmt.Errorf("http body field path %q is invalid", path)
 	}
 	segments := strings.Split(path, ".")
 	descriptor := message.Desc
@@ -1107,7 +1107,7 @@ func httpResponseBodyField(
 	path string,
 ) (protoreflect.FieldDescriptor, error) {
 	if message == nil || !validHTTPResponseBodyFieldPath(path) {
-		return nil, fmt.Errorf("HTTP response body field %q is invalid", path)
+		return nil, fmt.Errorf("http response body field %q is invalid", path)
 	}
 	segments := strings.Split(path, ".")
 	descriptor := message.Desc

@@ -167,7 +167,15 @@ func NewJob(config JobConfig) (*Job, error) {
 		return result, result.Cause()
 	})
 
-	runtime, err := newWorker(config.Name, config.Operation, operation.KindJob, source, final, config.Middleware, config.Health)
+	runtime, err := newWorker(
+		config.Name,
+		config.Operation,
+		operation.KindJob,
+		source,
+		final,
+		config.Middleware,
+		config.Health,
+	)
 	if err != nil {
 		return nil, err
 	}

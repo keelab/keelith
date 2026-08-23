@@ -70,7 +70,15 @@ type Worker struct {
 	stopOnce  sync.Once
 }
 
-func newWorker(name string, target operation.Operation, wantKind operation.Kind, source runtimeSource, final middleware.Handler, bundle *middleware.Bundle, registry *health.Registry) (*Worker, error) {
+func newWorker(
+	name string,
+	target operation.Operation,
+	wantKind operation.Kind,
+	source runtimeSource,
+	final middleware.Handler,
+	bundle *middleware.Bundle,
+	registry *health.Registry,
+) (*Worker, error) {
 	normalizedName := strings.TrimSpace(name)
 	if normalizedName == "" {
 		return nil, invalidOption("name is empty")
@@ -78,7 +86,12 @@ func newWorker(name string, target operation.Operation, wantKind operation.Kind,
 	if target.Transport() == "" || target.Kind() != wantKind {
 		return nil, invalidOption(fmt.Sprintf("operation kind is %q, want %q", target.Kind(), wantKind))
 	}
-	if final == nil || source.start == nil || source.stopPulling == nil || source.drain == nil || source.close == nil || source.wait == nil {
+	if final == nil ||
+		source.start == nil ||
+		source.stopPulling == nil ||
+		source.drain == nil ||
+		source.close == nil ||
+		source.wait == nil {
 		return nil, invalidOption("runtime source is incomplete")
 	}
 	invoke := final
@@ -282,7 +295,12 @@ func (w *Worker) rollback(primary error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), forcedShutdownTimeout)
 	defer cancel()
 
-	return errors.Join(w.source.stopPulling(cleanupCtx), w.inflight.stopAndWait(cleanupCtx), w.source.drain(cleanupCtx), w.source.close(cleanupCtx))
+	return errors.Join(
+		w.source.stopPulling(cleanupCtx),
+		w.inflight.stopAndWait(cleanupCtx),
+		w.source.drain(cleanupCtx),
+		w.source.close(cleanupCtx),
+	)
 }
 
 func (w *Worker) complete(err error) {

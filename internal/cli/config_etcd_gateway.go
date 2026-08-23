@@ -387,7 +387,12 @@ func (store *etcdGatewayStore) Activate(
 	txn := etcdGatewayTxnRequest{
 		Compare: []etcdGatewayCompare{
 			{Key: encodeEtcdBytes([]byte(revisionKey)), Target: "VERSION", Result: "GREATER", Version: "0"},
-			{Key: encodeEtcdBytes([]byte(activeKey)), Target: "MOD", Result: "EQUAL", ModRevision: strconv.FormatInt(currentModRevision, 10)},
+			{
+				Key:         encodeEtcdBytes([]byte(activeKey)),
+				Target:      "MOD",
+				Result:      "EQUAL",
+				ModRevision: strconv.FormatInt(currentModRevision, 10),
+			},
 			{Key: encodeEtcdBytes([]byte(historyKey)), Target: "VERSION", Result: "EQUAL", Version: "0"},
 		},
 		Success: []etcdGatewayRequestOp{
@@ -592,14 +597,14 @@ func (store *etcdGatewayStore) request(
 
 func decodeEtcdGatewayResponse(response *http.Response, output any) (err error) {
 	if response == nil {
-		return errors.New("etcd gateway: nil HTTP response")
+		return errors.New("etcd gateway: nil http response")
 	}
 	defer func() {
 		err = errors.Join(err, response.Body.Close())
 	}()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64*1024))
-		return fmt.Errorf("etcd gateway: HTTP status %d", response.StatusCode)
+		return fmt.Errorf("etcd gateway: http status %d", response.StatusCode)
 	}
 	limited := io.LimitReader(response.Body, etcdGatewayMaxResponse+1)
 	content, err := io.ReadAll(limited)
@@ -638,19 +643,19 @@ func validateEtcdGatewayDocument(content []byte, format core.Format) error {
 		decoder := json.NewDecoder(bytes.NewReader(content))
 		decoder.UseNumber()
 		if err := decoder.Decode(&document); err != nil {
-			return fmt.Errorf("config candidate JSON is invalid: %w", err)
+			return fmt.Errorf("config candidate json is invalid: %w", err)
 		}
 		if err := requireEtcdGatewayEOF(decoder.Decode(new(any))); err != nil {
-			return fmt.Errorf("config candidate JSON is invalid: %w", err)
+			return fmt.Errorf("config candidate json is invalid: %w", err)
 		}
 	case core.FormatYAML:
 		decoder := yaml.NewDecoder(bytes.NewReader(content))
 		if err := decoder.Decode(&document); err != nil {
-			return fmt.Errorf("config candidate YAML is invalid: %w", err)
+			return fmt.Errorf("config candidate yaml is invalid: %w", err)
 		}
 		var extra any
 		if err := requireEtcdGatewayEOF(decoder.Decode(&extra)); err != nil {
-			return fmt.Errorf("config candidate YAML is invalid: %w", err)
+			return fmt.Errorf("config candidate yaml is invalid: %w", err)
 		}
 	default:
 		return core.ErrInvalidRequest

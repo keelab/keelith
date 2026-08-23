@@ -60,7 +60,11 @@ type HashShardResolver[K any] struct {
 }
 
 // NewHashShardResolver constructs an immutable stable hash resolver.
-func NewHashShardResolver[K any](keyFingerprint string, encode KeyEncoder[K], shards ...ShardID) (*HashShardResolver[K], error) {
+func NewHashShardResolver[K any](
+	keyFingerprint string,
+	encode KeyEncoder[K],
+	shards ...ShardID,
+) (*HashShardResolver[K], error) {
 	if !validFingerprint(keyFingerprint) || encode == nil {
 		return nil, fmt.Errorf("%w: key contract", ErrInvalidShard)
 	}
@@ -132,8 +136,17 @@ type RangeShardResolver[K any] struct {
 }
 
 // NewRangeShardResolver constructs an immutable validated range resolver.
-func NewRangeShardResolver[K any](keyFingerprint string, compare func(K, K) int, boundaries []RangeBoundary[K], fallback ShardID) (*RangeShardResolver[K], error) {
-	if !validFingerprint(keyFingerprint) || compare == nil || len(boundaries) == 0 || len(boundaries) > 4096 || fallback.Validate() != nil {
+func NewRangeShardResolver[K any](
+	keyFingerprint string,
+	compare func(K, K) int,
+	boundaries []RangeBoundary[K],
+	fallback ShardID,
+) (*RangeShardResolver[K], error) {
+	if !validFingerprint(keyFingerprint) ||
+		compare == nil ||
+		len(boundaries) == 0 ||
+		len(boundaries) > 4096 ||
+		fallback.Validate() != nil {
 		return nil, fmt.Errorf("%w: range contract", ErrInvalidShard)
 	}
 	copyBoundaries := append([]RangeBoundary[K](nil), boundaries...)

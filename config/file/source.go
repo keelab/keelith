@@ -295,7 +295,7 @@ func decode(content []byte, format Format) (map[string]any, error) {
 		var extra any
 		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 			if err == nil {
-				return nil, errors.New("multiple YAML documents are not supported")
+				return nil, errors.New("multiple yaml documents are not supported")
 			}
 			return nil, err
 		}
@@ -312,7 +312,7 @@ func requireEOFJSON(decoder *json.Decoder) error {
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return errors.New("multiple JSON values are not supported")
+			return errors.New("multiple json values are not supported")
 		}
 		return err
 	}

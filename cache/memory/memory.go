@@ -113,7 +113,13 @@ func (s *Store) CurrentVersion(ctx context.Context, key string) (uint64, error) 
 }
 
 // SetIfVersion stores only while the invalidation watermark is unchanged.
-func (s *Store) SetIfVersion(ctx context.Context, key string, value []byte, ttl time.Duration, expected uint64) (bool, error) {
+func (s *Store) SetIfVersion(
+	ctx context.Context,
+	key string,
+	value []byte,
+	ttl time.Duration,
+	expected uint64,
+) (bool, error) {
 	if cause := context.Cause(ctx); cause != nil {
 		return false, cause
 	}

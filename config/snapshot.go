@@ -113,7 +113,20 @@ func cloneValue(value any, allowDelete bool) (any, error) {
 
 	reflected := reflect.ValueOf(value)
 	switch reflected.Kind() {
-	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64, reflect.String:
+	case reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.String:
 		return value, nil
 	case reflect.Map:
 		if reflected.Type().Key().Kind() != reflect.String {

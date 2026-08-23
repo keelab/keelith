@@ -131,13 +131,22 @@ func newBuilder(ctx context.Context, modules []Module) (*builder, error) {
 			binding := &binding{provider: item, output: outputIndex}
 			scoped := scopedKey{module: item.module, key: output}
 			if output.group != "" {
-				groupKey := scopedKey{module: item.module, key: key{typeOf: output.typeOf, group: output.group}}
+				groupKey := scopedKey{
+					module: item.module,
+					key:    key{typeOf: output.typeOf, group: output.group},
+				}
 				result.groups[groupKey] = append(result.groups[groupKey], binding)
 				continue
 			}
 			if existing := result.bindings[scoped]; existing != nil {
 				if !item.override {
-					return nil, fmt.Errorf("%w: %s from %s and %s", ErrDuplicateProvider, output, existing.provider.displayName, item.displayName)
+					return nil, fmt.Errorf(
+						"%w: %s from %s and %s",
+						ErrDuplicateProvider,
+						output,
+						existing.provider.displayName,
+						item.displayName,
+					)
 				}
 				result.bindings[scoped] = binding
 			} else {
@@ -175,7 +184,14 @@ func newBuilder(ctx context.Context, modules []Module) (*builder, error) {
 			for _, exported := range child.exports {
 				visible := scopedKey{module: module.name, key: exported}
 				if previous, duplicate := result.imports[visible]; duplicate {
-					return nil, fmt.Errorf("%w: module %s imports %s from %s and %s", ErrDuplicateProvider, module.name, exported, previous.module, child.name)
+					return nil, fmt.Errorf(
+						"%w: module %s imports %s from %s and %s",
+						ErrDuplicateProvider,
+						module.name,
+						exported,
+						previous.module,
+						child.name,
+					)
 				}
 				result.imports[visible] = scopedKey{module: child.name, key: exported}
 			}
@@ -184,7 +200,12 @@ func newBuilder(ctx context.Context, modules []Module) (*builder, error) {
 	for _, overridden := range pendingOverrides {
 		importedKey, imported := result.imports[overridden]
 		if !imported {
-			return nil, fmt.Errorf("%w: module %s %s has no binding to replace", ErrInvalidOverride, overridden.module, overridden.key)
+			return nil, fmt.Errorf(
+				"%w: module %s %s has no binding to replace",
+				ErrInvalidOverride,
+				overridden.module,
+				overridden.key,
+			)
 		}
 		importedBinding := result.bindings[importedKey]
 		if importedBinding != nil {
@@ -212,7 +233,13 @@ func (builder *builder) resolveRoot(required key) (reflect.Value, error) {
 			continue
 		}
 		if selected.module != "" {
-			return reflect.Value{}, fmt.Errorf("%w: root %s is visible from %s and %s", ErrDuplicateProvider, required, selected.module, module)
+			return reflect.Value{}, fmt.Errorf(
+				"%w: root %s is visible from %s and %s",
+				ErrDuplicateProvider,
+				required,
+				selected.module,
+				module,
+			)
 		}
 		selected = candidate
 	}
@@ -262,9 +289,18 @@ func (builder *builder) resolveScoped(required scopedKey, consumerScope Scope) (
 	return builder.resolveBinding(required, binding, consumerScope)
 }
 
-func (builder *builder) resolveBinding(required scopedKey, binding *binding, consumerScope Scope) (reflect.Value, error) {
+func (builder *builder) resolveBinding(
+	required scopedKey,
+	binding *binding,
+	consumerScope Scope,
+) (reflect.Value, error) {
 	if consumerScope == ApplicationScope && binding.provider.scope == TransientScope {
-		return reflect.Value{}, fmt.Errorf("%w: application provider captures transient %s/%s", ErrScopeViolation, required.module, required.key)
+		return reflect.Value{}, fmt.Errorf(
+			"%w: application provider captures transient %s/%s",
+			ErrScopeViolation,
+			required.module,
+			required.key,
+		)
 	}
 	if slices.Contains(builder.visiting, required) {
 		cycle := append(append([]scopedKey(nil), builder.visiting...), required)
@@ -317,7 +353,11 @@ func (builder *builder) construct(item *provider) ([]reflect.Value, error) {
 	return builder.invoke(item, nil)
 }
 
-func (builder *builder) constructDecorator(item *provider, decorated key, current reflect.Value) (reflect.Value, error) {
+func (builder *builder) constructDecorator(
+	item *provider,
+	decorated key,
+	current reflect.Value,
+) (reflect.Value, error) {
 	values, err := builder.invoke(item, &decoratedValue{key: decorated, value: current})
 	if err != nil {
 		return reflect.Value{}, err
@@ -485,7 +525,11 @@ func (builder *builder) lazyValue(module string, parameter reflect.Type, scope S
 	}
 	binding := builder.bindings[resolved]
 	if providerOwnsLifecycle(binding.provider) {
-		return reflect.Value{}, fmt.Errorf("%w: lazy provider %s owns lifecycle", ErrInvalidProvider, binding.provider.displayName)
+		return reflect.Value{}, fmt.Errorf(
+			"%w: lazy provider %s owns lifecycle",
+			ErrInvalidProvider,
+			binding.provider.displayName,
+		)
 	}
 	for _, decorator := range binding.decorators {
 		if providerOwnsLifecycle(decorator) {
@@ -535,7 +579,17 @@ func (builder *builder) providerDescription(item *provider) *ProviderDescription
 	if item.scope == TransientScope {
 		scope = "transient"
 	}
-	description := &ProviderDescription{ID: item.module + ":" + item.displayName, Module: item.module, Type: item.outputs[0].typeOf.String(), Name: item.outputs[0].name, Group: item.outputs[0].group, Scope: scope, State: "registered", Decorator: item.decorator, Override: item.override}
+	description := &ProviderDescription{
+		ID:        item.module + ":" + item.displayName,
+		Module:    item.module,
+		Type:      item.outputs[0].typeOf.String(),
+		Name:      item.outputs[0].name,
+		Group:     item.outputs[0].group,
+		Scope:     scope,
+		State:     "registered",
+		Decorator: item.decorator,
+		Override:  item.override,
+	}
 	if item.function != nil {
 		for in := range item.function.Ins() {
 			if in != contextType {
@@ -570,7 +624,11 @@ func describeEdges(description Description) Description {
 					continue
 				}
 				seen[identity] = struct{}{}
-				description.Edges = append(description.Edges, EdgeDescription{From: dependency.ID, To: consumer.ID, Type: dependencyType})
+				description.Edges = append(description.Edges, EdgeDescription{
+					From: dependency.ID,
+					To:   consumer.ID,
+					Type: dependencyType,
+				})
 			}
 		}
 	}

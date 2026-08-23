@@ -276,7 +276,12 @@ func (controller *Controller) Shutdown() {
 }
 
 func (controller *Controller) statusLocked() Status {
-	status := Status{Level: controller.level.Level().String(), Baseline: controller.baseline.String(), Revision: controller.revision, Updates: controller.updates.Load()}
+	status := Status{
+		Level:    controller.level.Level().String(),
+		Baseline: controller.baseline.String(),
+		Revision: controller.revision,
+		Updates:  controller.updates.Load(),
+	}
 	if !controller.expires.IsZero() {
 		expires := controller.expires
 		status.ExpiresAt = &expires

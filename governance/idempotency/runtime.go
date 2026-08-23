@@ -206,7 +206,13 @@ func storageOperation(target operation.Operation) string {
 		url.PathEscape(string(target.Kind()))
 }
 
-func (r *Runtime) execute(ctx context.Context, request any, next middleware.Handler, rule Rule, lease Lease) (any, error) {
+func (r *Runtime) execute(
+	ctx context.Context,
+	request any,
+	next middleware.Handler,
+	rule Rule,
+	lease Lease,
+) (any, error) {
 	r.mu.Lock()
 	r.acquired++
 	r.mu.Unlock()

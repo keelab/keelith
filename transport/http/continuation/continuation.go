@@ -292,7 +292,7 @@ func RegisterContinuationRoutes(
 		MaxEventBytes: options.eventBytes,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: continuation SSE: %w", transporthttp.ErrInvalidRoute, err)
+		return fmt.Errorf("%w: continuation sse: %w", transporthttp.ErrInvalidRoute, err)
 	}
 	streamEncoder := continuationSSEEncoder(sseEncoder)
 
@@ -473,7 +473,7 @@ func decodeContinuationSignal() transporthttp.Decoder {
 			message.GetCommandId(),
 			maxContinuationCommandBytes,
 		) {
-			return nil, fmt.Errorf("continuation: invalid command ID")
+			return nil, fmt.Errorf("continuation: invalid command id")
 		}
 		return continuationCommandRequest{
 			callID:    callID,
@@ -509,7 +509,7 @@ func decodeContinuationCancel() transporthttp.Decoder {
 			message.GetCommandId(),
 			maxContinuationCommandBytes,
 		) {
-			return nil, fmt.Errorf("continuation: invalid command ID")
+			return nil, fmt.Errorf("continuation: invalid command id")
 		}
 		return continuationCommandRequest{
 			callID:    callID,
@@ -534,7 +534,7 @@ func decodeContinuationAttach(request *nethttp.Request) (any, error) {
 	}
 	sseRequest, ok := decoded.(transporthttp.SSERequest)
 	if !ok {
-		return nil, fmt.Errorf("continuation: invalid SSE request")
+		return nil, fmt.Errorf("continuation: invalid sse request")
 	}
 	after := uint64(0)
 	if sseRequest.LastEventID() != "" {
@@ -1081,11 +1081,11 @@ func newContinuationHTTPCallID(
 	value string,
 ) (continuation.CallID, error) {
 	if !validContinuationHTTPIdentity(value, maxContinuationCallIDBytes) {
-		return continuation.CallID{}, fmt.Errorf("continuation: invalid call ID")
+		return continuation.CallID{}, fmt.Errorf("continuation: invalid call id")
 	}
 	callID, err := continuation.NewCallID(value)
 	if err != nil {
-		return continuation.CallID{}, fmt.Errorf("continuation: invalid call ID")
+		return continuation.CallID{}, fmt.Errorf("continuation: invalid call id")
 	}
 	return callID, nil
 }

@@ -370,7 +370,10 @@ func (r *Router) Describe() Description {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	stale := r.state == StateRunning && !r.connected && !r.disconnectedAt.IsZero() && time.Since(r.disconnectedAt) >= r.maxStale
+	stale := r.state == StateRunning &&
+		!r.connected &&
+		!r.disconnectedAt.IsZero() &&
+		time.Since(r.disconnectedAt) >= r.maxStale
 	return Description{
 		Name:           r.name,
 		Service:        r.service,

@@ -285,7 +285,7 @@ func (watcher *SecretWatcher) apply(value secret.Value) error {
 	}
 	var encoded secretMaterial
 	if err := json.Unmarshal(value.Bytes(), &encoded); err != nil {
-		return fmt.Errorf("%w: secret JSON: %w", ErrInvalidMaterial, err)
+		return fmt.Errorf("%w: secret json: %w", ErrInvalidMaterial, err)
 	}
 	if err := watcher.reloader.Update(Material{
 		CertificatePEM: []byte(encoded.CertificatePEM),

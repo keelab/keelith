@@ -28,10 +28,10 @@ func (r ReplayRequest) Validate(now time.Time) error {
 	seen := make(map[string]struct{}, len(r.IDs))
 	for _, id := range r.IDs {
 		if !validIdentity(id, maxIDBytes) {
-			return fmt.Errorf("%w: replay ID is malformed", ErrInvalidOption)
+			return fmt.Errorf("%w: replay id is malformed", ErrInvalidOption)
 		}
 		if _, duplicate := seen[id]; duplicate {
-			return fmt.Errorf("%w: replay ID is duplicated", ErrInvalidOption)
+			return fmt.Errorf("%w: replay id is duplicated", ErrInvalidOption)
 		}
 		seen[id] = struct{}{}
 	}

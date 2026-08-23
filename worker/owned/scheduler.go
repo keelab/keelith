@@ -176,7 +176,11 @@ func (s *Scheduler) Description() Description {
 	return s.description
 }
 
-func (s *Scheduler) runOwned(ctx context.Context, execution worker.Execution, handler worker.JobHandler) (result worker.Result) {
+func (s *Scheduler) runOwned(
+	ctx context.Context,
+	execution worker.Execution,
+	handler worker.JobHandler,
+) (result worker.Result) {
 	lease, acquired, err := s.coordinator.TryAcquire(ctx, s.key, s.ttl)
 
 	if err != nil {

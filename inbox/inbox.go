@@ -244,20 +244,24 @@ func DefaultKey(_ context.Context, message worker.Message) (string, error) {
 	switch len(values) {
 	case 0:
 		if !validIdentity(message.ID(), maxKeyBytes-len("delivery/")) {
-			return "", fmt.Errorf("%w: delivery ID", ErrInvalidOption)
+			return "", fmt.Errorf("%w: delivery id", ErrInvalidOption)
 		}
 		return "delivery/" + message.ID(), nil
 	case 1:
 		if !validIdentity(values[0], maxKeyBytes-len("outbox/")) {
-			return "", fmt.Errorf("%w: outbox ID", ErrInvalidOption)
+			return "", fmt.Errorf("%w: outbox id", ErrInvalidOption)
 		}
 		return "outbox/" + values[0], nil
 	default:
-		return "", fmt.Errorf("%w: multiple outbox IDs", ErrInvalidOption)
+		return "", fmt.Errorf("%w: multiple outbox ids", ErrInvalidOption)
 	}
 }
 
-func (p *Processor[Transaction]) invoke(ctx context.Context, transaction Transaction, message worker.Message) (result worker.Result) {
+func (p *Processor[Transaction]) invoke(
+	ctx context.Context,
+	transaction Transaction,
+	message worker.Message,
+) (result worker.Result) {
 	defer func() {
 		if recover() != nil {
 			p.panics.Add(1)

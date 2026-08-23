@@ -59,7 +59,7 @@ func WithHTTPBundle(bundles ...*middleware.Bundle) BindingOption {
 	return bindingOptionFunc(func(options *bindingOptions) error {
 		for index, bundle := range bundles {
 			if bundle == nil {
-				return fmt.Errorf("HTTP middleware bundle %d is nil", index)
+				return fmt.Errorf("http middleware bundle %d is nil", index)
 			}
 		}
 		options.httpBundles = append(options.httpBundles, bundles...)
@@ -72,7 +72,7 @@ func WithGRPCBundle(bundles ...*middleware.Bundle) BindingOption {
 	return bindingOptionFunc(func(options *bindingOptions) error {
 		for index, bundle := range bundles {
 			if bundle == nil {
-				return fmt.Errorf("gRPC middleware bundle %d is nil", index)
+				return fmt.Errorf("grpc middleware bundle %d is nil", index)
 			}
 		}
 		options.grpcBundles = append(options.grpcBundles, bundles...)
@@ -115,11 +115,11 @@ func NewBinding(spec BindingSpec, optionList ...BindingOption) Binding {
 	name := strings.TrimSpace(spec.Name)
 	httpBundle, httpErr := scopedBindingBundle(name, options.httpBundles)
 	if httpErr != nil {
-		failures = append(failures, fmt.Errorf("HTTP middleware: %w", httpErr))
+		failures = append(failures, fmt.Errorf("http middleware: %w", httpErr))
 	}
 	grpcBundle, grpcErr := scopedBindingBundle(name, options.grpcBundles)
 	if grpcErr != nil {
-		failures = append(failures, fmt.Errorf("gRPC middleware: %w", grpcErr))
+		failures = append(failures, fmt.Errorf("grpc middleware: %w", grpcErr))
 	}
 	return Binding{
 		name:           name,
@@ -164,10 +164,10 @@ func (binding Binding) Validate() error {
 		return fmt.Errorf("%w: service %q has no transport", ErrInvalidBinding, binding.name)
 	}
 	if binding.httpBundle != nil && binding.registerHTTP == nil {
-		return fmt.Errorf("%w: service %q has HTTP middleware without HTTP transport", ErrInvalidBinding, binding.name)
+		return fmt.Errorf("%w: service %q has http middleware without http transport", ErrInvalidBinding, binding.name)
 	}
 	if binding.grpcBundle != nil && binding.registerGRPC == nil {
-		return fmt.Errorf("%w: service %q has gRPC middleware without gRPC transport", ErrInvalidBinding, binding.name)
+		return fmt.Errorf("%w: service %q has grpc middleware without grpc transport", ErrInvalidBinding, binding.name)
 	}
 	return nil
 }

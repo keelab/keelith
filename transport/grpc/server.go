@@ -232,10 +232,10 @@ func WithMaxSendMessageBytes(maxBytes int) ServerOption {
 func WithTLS(config *tls.Config) ServerOption {
 	return serverOptionFunc(func(options *serverOptions) error {
 		if config == nil {
-			return fmt.Errorf("TLS config is nil")
+			return fmt.Errorf("tls config is nil")
 		}
 		if config.MinVersion < tls.VersionTLS12 {
-			return fmt.Errorf("TLS minimum version must be 1.2 or newer")
+			return fmt.Errorf("tls minimum version must be 1.2 or newer")
 		}
 		options.tlsConfig = config.Clone()
 		return nil

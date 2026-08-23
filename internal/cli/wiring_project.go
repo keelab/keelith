@@ -61,11 +61,16 @@ func newWiringProjectCommand(runtime *commandRuntime, check bool) *cobra.Command
 	if check {
 		use, short = "check", "Rebuild dependency wiring in isolation and report drift"
 	}
-	command := &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs, RunE: func(command *cobra.Command, _ []string) error {
-		return runCommand(command, runtime, func(ctx context.Context) int {
-			return executeWiringProject(ctx, options, check, runtime.stdout, runtime.stderr)
-		})
-	}}
+	command := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return runCommand(command, runtime, func(ctx context.Context) int {
+				return executeWiringProject(ctx, options, check, runtime.stdout, runtime.stderr)
+			})
+		},
+	}
 	command.Flags().StringVar(&options.path, "path", options.path, "project directory")
 	command.Flags().StringVar(&options.contract, "contract", options.contract, "project-relative wiring contract")
 	command.Flags().DurationVar(&options.timeout, "timeout", options.timeout, "frontend execution timeout")
@@ -105,7 +110,12 @@ func executeWiringProject(ctx context.Context, options wiringProjectOptions, che
 		_, _ = fmt.Fprintf(stderr, "keelith wiring: %v\n", err)
 		return 1
 	}
-	_, _ = fmt.Fprintf(stdout, "dependency wiring synchronized: manifest=%s embedded=%s", contract.Manifest, contract.Embedded.Path)
+	_, _ = fmt.Fprintf(
+		stdout,
+		"dependency wiring synchronized: manifest=%s embedded=%s",
+		contract.Manifest,
+		contract.Embedded.Path,
+	)
 	if contract.Static != "" {
 		_, _ = fmt.Fprintf(stdout, " static=%s", contract.Static)
 	}
@@ -134,12 +144,16 @@ func loadWiringProjectContract(options wiringProjectOptions) (string, wiringProj
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
-		return "", wiringProjectContract{}, errors.New("contract contains multiple JSON values")
+		return "", wiringProjectContract{}, errors.New("contract contains multiple json values")
 	}
 	if contract.Schema != wiringContractSchema {
 		return "", wiringProjectContract{}, fmt.Errorf("unsupported contract schema %q", contract.Schema)
 	}
-	if contract.Frontend == "" || contract.Manifest == "" || contract.Embedded.Path == "" || contract.Embedded.Package == "" || contract.Embedded.Variable == "" {
+	if contract.Frontend == "" ||
+		contract.Manifest == "" ||
+		contract.Embedded.Path == "" ||
+		contract.Embedded.Package == "" ||
+		contract.Embedded.Variable == "" {
 		return "", wiringProjectContract{}, errors.New("contract is incomplete")
 	}
 	if _, err := safeProjectDirectory(project, contract.Frontend); err != nil {

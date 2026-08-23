@@ -250,7 +250,12 @@ func instanceFailure(err error) bool {
 }
 
 func validate(config policy.BreakerPolicy) error {
-	if config.FailureRatio <= 0 || config.FailureRatio > 1 || config.Window <= 0 || config.MinRequests <= 0 || config.OpenTimeout <= 0 || config.HalfOpenProbes <= 0 {
+	if config.FailureRatio <= 0 ||
+		config.FailureRatio > 1 ||
+		config.Window <= 0 ||
+		config.MinRequests <= 0 ||
+		config.OpenTimeout <= 0 ||
+		config.HalfOpenProbes <= 0 {
 		return fmt.Errorf("%w: resolved breaker policy is invalid", policy.ErrInvalidPolicy)
 	}
 	return nil

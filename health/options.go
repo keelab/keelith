@@ -43,7 +43,7 @@ func WithCheckTimeout(timeout time.Duration) RegistryOption {
 func WithCacheTTL(ttl time.Duration) RegistryOption {
 	return registryOptionFunc(func(options *registryOptions) error {
 		if ttl <= 0 || ttl > maxCheckCacheTTL {
-			return fmt.Errorf("cache TTL must be within (0, %s]", maxCheckCacheTTL)
+			return fmt.Errorf("cache ttl must be within (0, %s]", maxCheckCacheTTL)
 		}
 		options.cacheTTL = ttl
 		return nil

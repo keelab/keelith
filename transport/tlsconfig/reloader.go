@@ -381,7 +381,7 @@ func parseMaterial(material Material) (*state, error) {
 	if len(material.CAPEM) > 0 {
 		roots = x509.NewCertPool()
 		if !roots.AppendCertsFromPEM(material.CAPEM) {
-			return nil, fmt.Errorf("%w: CA bundle", ErrInvalidMaterial)
+			return nil, fmt.Errorf("%w: ca bundle", ErrInvalidMaterial)
 		}
 	}
 	if certificate == nil && roots == nil {

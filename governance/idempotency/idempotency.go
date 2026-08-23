@@ -193,7 +193,7 @@ func ValidateRule(rule Rule) error {
 		rule.ProcessingTTL > maximumProcessingTTL ||
 		rule.ResultTTL < minimumResultTTL ||
 		rule.ResultTTL > maximumResultTTL {
-		return fmt.Errorf("%w: rule TTL", ErrInvalidConfig)
+		return fmt.Errorf("%w: rule ttl", ErrInvalidConfig)
 	}
 	if rule.Request == nil || isNil(rule.Codec) {
 		return fmt.Errorf("%w: request and codec are required", ErrInvalidConfig)

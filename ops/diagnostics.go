@@ -171,7 +171,7 @@ func validateBuildInfo(info BuildInfo) error {
 	}
 	if info.BuildTime != "" {
 		if _, err := time.Parse(time.RFC3339, info.BuildTime); err != nil {
-			return fmt.Errorf("build time is not RFC3339")
+			return fmt.Errorf("build time is not rfc3339")
 		}
 	}
 	return nil

@@ -22,7 +22,13 @@ type checkerOutcome struct {
 	result Result
 }
 
-func runCheckers(ctx context.Context, timeout time.Duration, names []string, checkers map[string]Checker, now time.Time) []CheckResult {
+func runCheckers(
+	ctx context.Context,
+	timeout time.Duration,
+	names []string,
+	checkers map[string]Checker,
+	now time.Time,
+) []CheckResult {
 	if len(names) == 0 {
 		return nil
 	}

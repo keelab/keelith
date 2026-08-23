@@ -145,7 +145,10 @@ func Parse(payload []byte) (topology.Plan, error) {
 
 // Marshal validates and emits one deterministic newline-terminated document.
 func Marshal(plan topology.Plan) ([]byte, error) {
-	if len(plan.Placements) == 0 || len(plan.Placements) > maximumPlacements || len(plan.Components) == 0 || len(plan.Components) > maximumComponents {
+	if len(plan.Placements) == 0 ||
+		len(plan.Placements) > maximumPlacements ||
+		len(plan.Components) == 0 ||
+		len(plan.Components) > maximumComponents {
 		return nil, ErrInvalidDocument
 	}
 	if _, err := topology.Activate(plan); err != nil {

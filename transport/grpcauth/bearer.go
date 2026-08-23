@@ -446,7 +446,7 @@ func validateToken(value secret.Value, maxBytes int) (string, error) {
 	if len(tokenContent) == 0 ||
 		len(tokenContent) > maxBytes ||
 		!utf8.Valid(tokenContent) {
-		return "", fmt.Errorf("%w: token violates size or UTF-8 budget", ErrInvalidOption)
+		return "", fmt.Errorf("%w: token violates size or utf-8 budget", ErrInvalidOption)
 	}
 	token := string(tokenContent)
 	if strings.TrimSpace(token) != token || !validBearerToken(token) {

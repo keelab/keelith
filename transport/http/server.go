@@ -184,10 +184,10 @@ func WithHealth(registry *health.Registry) ServerOption {
 func WithTLS(config *tls.Config) ServerOption {
 	return serverOptionFunc(func(options *serverOptions) error {
 		if config == nil {
-			return fmt.Errorf("TLS config is nil")
+			return fmt.Errorf("tls config is nil")
 		}
 		if config.MinVersion < tls.VersionTLS12 {
-			return fmt.Errorf("TLS minimum version must be 1.2 or newer")
+			return fmt.Errorf("tls minimum version must be 1.2 or newer")
 		}
 		options.tlsConfig = config.Clone()
 		return nil
@@ -258,10 +258,10 @@ func NewServer(router *Router, optionList ...ServerOption) (*Server, error) {
 		var err error
 		handler, err = options.handlerWrapper(handler)
 		if err != nil {
-			return nil, fmt.Errorf("%w: wrap HTTP handler: %w", ErrInvalidOption, err)
+			return nil, fmt.Errorf("%w: wrap http handler: %w", ErrInvalidOption, err)
 		}
 		if isNilHTTPHandler(handler) {
-			return nil, fmt.Errorf("%w: wrapped HTTP handler is nil", ErrInvalidOption)
+			return nil, fmt.Errorf("%w: wrapped http handler is nil", ErrInvalidOption)
 		}
 	}
 	transport.handler = handler

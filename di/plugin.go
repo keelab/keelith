@@ -53,7 +53,7 @@ func ValidatePlugins(plugins []Plugin) ([]Plugin, error) {
 	for index := range result {
 		result[index].ID = strings.TrimSpace(result[index].ID)
 		if result[index].ID == "" {
-			return nil, fmt.Errorf("%w: plugin %d has empty ID", ErrInvalidModule, index)
+			return nil, fmt.Errorf("%w: plugin %d has empty id", ErrInvalidModule, index)
 		}
 		if _, duplicate := seen[result[index].ID]; duplicate {
 			return nil, fmt.Errorf("%w: plugin %q", ErrDuplicateProvider, result[index].ID)

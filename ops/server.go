@@ -115,7 +115,7 @@ func WithPprof() Option {
 func WithCPUProfile(handler http.Handler) Option {
 	return optionFunc(func(options *options) error {
 		if isNilHandler(handler) {
-			return fmt.Errorf("CPU profile handler is nil")
+			return fmt.Errorf("cpu profile handler is nil")
 		}
 		options.cpuProfile = handler
 		return nil

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 )
 
@@ -17,29 +16,25 @@ var ErrInvalidComponentGraph = errors.New("app: invalid component graph")
 // Components start after all of their declared dependencies and stop in the
 // exact reverse order after servers have drained.
 type Component interface {
-	// Name returns the component's stable graph identifier.
 	Name() string
-	// Start initializes the component.
 	Start(context.Context) error
-	// Stop shuts down the component.
 	Stop(context.Context) error
 }
 
 // DependencyProvider declares component names required before Start.
 type DependencyProvider interface {
-	// Dependencies returns the component's dependency list.
 	Dependencies() []string
 }
 
 // ComponentFunc adapts functions to Component and DependencyProvider.
 type ComponentFunc struct {
-	ComponentName string                      // the component's stable graph identifier
-	DependsOn     []string                    // the component's dependency list
-	StartFunc     func(context.Context) error // the component's start function
-	StopFunc      func(context.Context) error // the component's stop function
+	ComponentName string
+	DependsOn     []string
+	StartFunc     func(context.Context) error
+	StopFunc      func(context.Context) error
 }
 
-// Name returns the component's stable graph identifier.
+// Name returns the component's graph identifier.
 func (c ComponentFunc) Name() string { return c.ComponentName }
 
 // Dependencies returns an independent dependency list.
@@ -47,7 +42,7 @@ func (c ComponentFunc) Dependencies() []string {
 	return append([]string(nil), c.DependsOn...)
 }
 
-// Start initializes the component.
+// Start calls StartFunc when it is set.
 func (c ComponentFunc) Start(ctx context.Context) error {
 	if c.StartFunc == nil {
 		return nil
@@ -55,7 +50,7 @@ func (c ComponentFunc) Start(ctx context.Context) error {
 	return c.StartFunc(ctx)
 }
 
-// Stop shuts down the component.
+// Stop calls StopFunc when it is set.
 func (c ComponentFunc) Stop(ctx context.Context) error {
 	if c.StopFunc == nil {
 		return nil
@@ -69,7 +64,7 @@ func sortComponents(components []Component) ([]Component, error) {
 	dependencies := make([][]string, len(components))
 
 	for index, component := range components {
-		if isNilComponent(component) {
+		if isNilInterface(component) {
 			return nil, fmt.Errorf("%w: component %d is nil", ErrInvalidComponentGraph, index)
 		}
 		name := strings.TrimSpace(component.Name())
@@ -142,22 +137,4 @@ func sortComponents(components []Component) ([]Component, error) {
 		}
 	}
 	return order, nil
-}
-
-func isNilComponent(component Component) bool {
-	if component == nil {
-		return true
-	}
-	value := reflect.ValueOf(component)
-	switch value.Kind() {
-	case reflect.Chan,
-		reflect.Func,
-		reflect.Interface,
-		reflect.Map,
-		reflect.Pointer,
-		reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }

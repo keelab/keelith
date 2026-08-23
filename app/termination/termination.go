@@ -14,6 +14,7 @@ import (
 var (
 	// ErrInvalidOption reports a nil parent, signal channel, or Runner.
 	ErrInvalidOption = errors.New("termination: invalid option")
+
 	// ErrForcedShutdown reports a second signal after shutdown has begun.
 	//
 	// Run may return this error while Runner is still blocked. The executable
@@ -32,10 +33,6 @@ type Runner func(context.Context) error
 // The first received signal cancels the Runner context. Parent cancellation
 // has the same first-stage effect. A signal received after either event returns
 // ErrForcedShutdown immediately. Run otherwise returns the Runner result.
-//
-// A caller should pass a buffered channel registered with os/signal.Notify so
-// two signals can be retained while Runner is busy. Run never closes or
-// unregisters the channel.
 func Run(parent context.Context, signals <-chan os.Signal, runner Runner) error {
 	if parent == nil || signals == nil || runner == nil {
 		return ErrInvalidOption
@@ -44,16 +41,16 @@ func Run(parent context.Context, signals <-chan os.Signal, runner Runner) error 
 	ctx, cancel := context.WithCancelCause(parent)
 	defer cancel(nil)
 
-	results := make(chan error, 1)
+	done := make(chan error, 1)
 	go func() {
-		results <- runner(ctx)
+		done <- runner(ctx)
 	}()
 
 	terminating := context.Cause(ctx) != nil
 	for {
 		if terminating {
 			select {
-			case err := <-results:
+			case err := <-done:
 				return err
 			case _, open := <-signals:
 				if !open {
@@ -65,7 +62,7 @@ func Run(parent context.Context, signals <-chan os.Signal, runner Runner) error 
 		}
 
 		select {
-		case err := <-results:
+		case err := <-done:
 			return err
 		case <-ctx.Done():
 			terminating = true

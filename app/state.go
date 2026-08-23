@@ -2,25 +2,24 @@ package app
 
 import "fmt"
 
-// State represents the state of the application.
+// State is the App lifecycle phase.
 type State uint8
 
 const (
-	// StateNew means the application has not started.
+	// StateNew means Run has not been called.
 	StateNew State = iota
-	// StateStarting means the application is starting.
+	// StateStarting means hooks and servers are starting.
 	StateStarting
-	// StateReady means the application is ready to serve requests.
+	// StateReady means startup completed and servers are running.
 	StateReady
-	// StateDraining means the application is draining.
+	// StateDraining means shutdown hooks and servers are stopping.
 	StateDraining
-	// StateStopped means the application has stopped.
+	// StateStopped means Run returned without failure.
 	StateStopped
-	// StateFailed means the application has failed.
+	// StateFailed means Run returned an error.
 	StateFailed
 )
 
-// String returns the string representation of the state.
 func (state State) String() string {
 	switch state {
 	case StateNew:
@@ -40,9 +39,9 @@ func (state State) String() string {
 	}
 }
 
-// Description holds the state description of the application.
+// Description is a compact App lifecycle snapshot.
 type Description struct {
-	State    State // the current state of the application
-	Terminal bool  // whether the state is terminal
-	Failed   bool  // whether the state is failed
+	State    State
+	Terminal bool
+	Failed   bool
 }

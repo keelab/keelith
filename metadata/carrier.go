@@ -99,8 +99,8 @@ type PolicyOption interface {
 
 type policyOptionFunc func(*policyOptions) error
 
-func (function policyOptionFunc) applyPolicy(options *policyOptions) error {
-	return function(options)
+func (f policyOptionFunc) applyPolicy(options *policyOptions) error {
+	return f(options)
 }
 
 type policyOptions struct {

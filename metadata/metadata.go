@@ -38,8 +38,8 @@ type Option interface {
 
 type optionFunc func(*metadataOptions) error
 
-func (function optionFunc) apply(options *metadataOptions) error {
-	return function(options)
+func (f optionFunc) apply(options *metadataOptions) error {
+	return f(options)
 }
 
 type metadataOptions struct {

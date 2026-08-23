@@ -31,9 +31,9 @@ type Matcher interface {
 // MatcherFunc adapts a deterministic function to Matcher.
 type MatcherFunc func(Operation) bool
 
-// Match invokes function.
-func (function MatcherFunc) Match(target Operation) bool {
-	return function != nil && function(target)
+// Match delegates to fn when it is set.
+func (fn MatcherFunc) Match(target Operation) bool {
+	return fn != nil && fn(target)
 }
 
 // MatchPattern describes a bounded field-level Operation matcher.
@@ -112,26 +112,26 @@ func CompileMatcher(pattern MatchPattern) (Matcher, error) {
 	return matcher, nil
 }
 
-func (matcher *compiledMatcher) Match(target Operation) bool {
-	if matcher == nil {
+func (m *compiledMatcher) Match(target Operation) bool {
+	if m == nil {
 		return false
 	}
-	if matcher.transport != "" && target.transport != matcher.transport {
+	if m.transport != "" && target.transport != m.transport {
 		return false
 	}
-	if matcher.kind != "" && target.kind != matcher.kind {
+	if m.kind != "" && target.kind != m.kind {
 		return false
 	}
-	switch matcher.mode {
+	switch m.mode {
 	case MatchExact:
-		return matchExact(matcher.service, target.service) &&
-			matchExact(matcher.method, target.method)
+		return matchExact(m.service, target.service) &&
+			matchExact(m.method, target.method)
 	case MatchPrefix:
-		return matchPrefix(matcher.service, target.service) &&
-			matchPrefix(matcher.method, target.method)
+		return matchPrefix(m.service, target.service) &&
+			matchPrefix(m.method, target.method)
 	case MatchRegexp:
-		return matchRegexp(matcher.serviceRE, target.service) &&
-			matchRegexp(matcher.methodRE, target.method)
+		return matchRegexp(m.serviceRE, target.service) &&
+			matchRegexp(m.methodRE, target.method)
 	default:
 		return false
 	}

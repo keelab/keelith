@@ -1,3 +1,5 @@
+// Package placement carries immutable, low-cardinality deployment placement
+// for one inbound service invocation.
 package placement
 
 import (
@@ -47,30 +49,30 @@ func New(listener, profile, group, service string) (Placement, error) {
 }
 
 // Listener returns the stable listener identity.
-func (value Placement) Listener() string { return value.listener }
+func (p Placement) Listener() string { return p.listener }
 
 // Profile returns the stable service Profile identity.
-func (value Placement) Profile() string { return value.profile }
+func (p Placement) Profile() string { return p.profile }
 
 // Group returns the optional stable policy Group identity.
-func (value Placement) Group() string { return value.group }
+func (p Placement) Group() string { return p.group }
 
 // Service returns the generated service identity.
-func (value Placement) Service() string { return value.service }
+func (p Placement) Service() string { return p.service }
 
 // GroupAttribute returns a stable non-empty, low-cardinality telemetry value.
-func (value Placement) GroupAttribute() string {
-	if value.group == "" {
+func (p Placement) GroupAttribute() string {
+	if p.group == "" {
 		return NoGroup
 	}
-	return value.group
+	return p.group
 }
 
 type contextKey struct{}
 
 // WithContext attaches value to ctx.
-func WithContext(ctx context.Context, value Placement) context.Context {
-	return context.WithValue(ctx, contextKey{}, value)
+func WithContext(ctx context.Context, p Placement) context.Context {
+	return context.WithValue(ctx, contextKey{}, p)
 }
 
 // FromContext returns the Placement attached to ctx.

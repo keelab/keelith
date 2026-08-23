@@ -99,9 +99,9 @@ type Validator interface {
 // Func adapts a function to Validator.
 type Func func(context.Context, any) error
 
-// Validate calls function.
-func (function Func) Validate(ctx context.Context, request any) error {
-	return function(ctx, request)
+// Validate delegates to fn.
+func (fn Func) Validate(ctx context.Context, request any) error {
+	return fn(ctx, request)
 }
 
 // ContextValidatable is implemented by request values that validate with a

@@ -58,7 +58,7 @@ type Config struct {
 // Bundle owns all providers for one App.
 type Bundle struct {
 	resource   *kresource.Resource
-	logger     *slog.Logger
+	logger     *logging.Logger
 	logging    *logging.Controller
 	audit      *audit.Logger
 	tracing    *tracing.Provider
@@ -133,7 +133,7 @@ func New(config Config) (*Bundle, error) {
 		if auditErr != nil {
 			return nil, auditErr
 		}
-		auditLogger, auditErr = audit.NewWithPolicy(auditBase, config.AuditPolicy)
+		auditLogger, auditErr = audit.NewWithPolicy(auditBase.Slog(), config.AuditPolicy)
 		if auditErr != nil {
 			return nil, auditErr
 		}
@@ -285,8 +285,8 @@ func (bundle *Bundle) Resource() *kresource.Resource {
 	return bundle.resource
 }
 
-// Logger returns the instance slog Logger.
-func (bundle *Bundle) Logger() *slog.Logger {
+// Logger returns the instance caller-aware logger.
+func (bundle *Bundle) Logger() *logging.Logger {
 	return bundle.logger
 }
 

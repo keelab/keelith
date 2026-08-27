@@ -91,30 +91,37 @@ func (l *Logger) WithGroup(name string) *Logger {
 	return &Logger{base: l.base.WithGroup(name), callerSkip: l.callerSkip}
 }
 
+// DebugContext logs a debug-level message with the supplied context.
 func (l *Logger) DebugContext(ctx context.Context, msg string, args ...any) {
 	l.log(ctx, slog.LevelDebug, msg, args...)
 }
 
+// Debug logs a debug-level message without an explicit context.
 func (l *Logger) Debug(msg string, args ...any) {
 	l.DebugContext(context.Background(), msg, args...)
 }
 
+// InfoContext logs an info-level message with the supplied context.
 func (l *Logger) InfoContext(ctx context.Context, msg string, args ...any) {
 	l.log(ctx, slog.LevelInfo, msg, args...)
 }
 
+// Info logs an info-level message without an explicit context.
 func (l *Logger) Info(msg string, args ...any) {
 	l.InfoContext(context.Background(), msg, args...)
 }
 
+// WarnContext logs a warning-level message with the supplied context.
 func (l *Logger) WarnContext(ctx context.Context, msg string, args ...any) {
 	l.log(ctx, slog.LevelWarn, msg, args...)
 }
 
+// Warn logs a warning-level message without an explicit context.
 func (l *Logger) Warn(msg string, args ...any) {
 	l.WarnContext(context.Background(), msg, args...)
 }
 
+// ErrorContext logs an error-level message with the supplied context.
 func (l *Logger) ErrorContext(ctx context.Context, msg string, args ...any) {
 	l.log(ctx, slog.LevelError, msg, args...)
 }
@@ -123,10 +130,12 @@ func (l *Logger) Error(msg string, args ...any) {
 	l.ErrorContext(context.Background(), msg, args...)
 }
 
+// Log logs a message at the supplied level with the supplied context.
 func (l *Logger) Log(ctx context.Context, level slog.Level, msg string, args ...any) {
 	l.log(ctx, level, msg, args...)
 }
 
+// LogAttrs logs a message at the supplied level with structured attributes.
 func (l *Logger) LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
 	if l == nil || l.base == nil || !l.Enabled(ctx, level) {
 		return

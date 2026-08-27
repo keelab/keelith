@@ -25,10 +25,28 @@ import (
 const defaultClientMaxHeaderBytes = 1 * 1024 * 1024
 
 // ClientCall contains a prepared HTTP request and typed-friendly decoder.
-type ClientCall struct {
+type ClientCall[T any] struct {
 	Request   *nethttp.Request
-	Decode    func(context.Context, *nethttp.Response) (any, error)
+	Decode    func(context.Context, *nethttp.Response) (T, error)
 	Streaming bool
+}
+
+type clientCall interface {
+	request() *nethttp.Request
+	decode(context.Context, *nethttp.Response) (any, error)
+	streaming() bool
+}
+
+func (call ClientCall[T]) request() *nethttp.Request {
+	return call.Request
+}
+
+func (call ClientCall[T]) decode(ctx context.Context, response *nethttp.Response) (any, error) {
+	return call.Decode(ctx, response)
+}
+
+func (call ClientCall[T]) streaming() bool {
+	return call.Streaming
 }
 
 // ClientOption configures a Client.
@@ -203,20 +221,20 @@ func NewClient(c *nethttp.Client, optionList ...ClientOption) (*Client, error) {
 	}, nil
 }
 
-// Invoke executes call through outbound middleware.
-func (c *Client) Invoke(
-	ctx context.Context,
-	target operation.Operation,
-	call ClientCall,
-) (any, error) {
+// Invoke executes a typed call through outbound middleware.
+func Invoke[T any](ctx context.Context, c *Client, target operation.Operation, call ClientCall[T]) (T, error) {
+	var zero T
+	if c == nil {
+		return zero, fmt.Errorf("%w: client is nil", ErrInvalidCall)
+	}
 	if ctx == nil {
-		return nil, ErrNilContext
+		return zero, ErrNilContext
 	}
 	if call.Request == nil || call.Request.URL == nil || call.Decode == nil {
-		return nil, ErrInvalidCall
+		return zero, ErrInvalidCall
 	}
 	if target.Transport() != "http" {
-		return nil, fmt.Errorf(
+		return zero, fmt.Errorf(
 			"%w: operation transport %q is not http",
 			ErrInvalidCall,
 			target.Transport(),
@@ -230,25 +248,33 @@ func (c *Client) Invoke(
 	}
 	requestInfo, err := newRequestInfo(target, network, address)
 	if err != nil {
-		return nil, fmt.Errorf("%w: request info: %w", ErrInvalidCall, err)
+		return zero, fmt.Errorf("%w: request info: %w", ErrInvalidCall, err)
 	}
 	ctx = operation.WithRequestInfo(ctx, requestInfo)
 	handler := middleware.Handler(c.invoke)
 	if c.bundle != nil {
 		handler = c.bundle.Chain()(handler)
 	}
-	return handler(ctx, call)
+	value, err := handler(ctx, call)
+	if err != nil {
+		return zero, err
+	}
+	typed, ok := value.(T)
+	if !ok {
+		return zero, fmt.Errorf("%w: response type %T", ErrInvalidCall, value)
+	}
+	return typed, nil
 }
 
 func (c *Client) invoke(
 	ctx context.Context,
 	request any,
 ) (responseValue any, resultErr error) {
-	call, ok := request.(ClientCall)
+	call, ok := request.(clientCall)
 	if !ok {
 		return nil, fmt.Errorf("%w: request type %T", ErrInvalidCall, request)
 	}
-	outboundRequest := call.Request.Clone(ctx)
+	outboundRequest := call.request().Clone(ctx)
 	if c.picker != nil {
 		target, exists := operation.FromContext(ctx)
 		if !exists {
@@ -293,7 +319,7 @@ func (c *Client) invoke(
 			return nil, fmt.Errorf("%w: selected request info: %w", ErrInvalidCall, err)
 		}
 		ctx = operation.WithRequestInfo(ctx, requestInfo)
-		outboundRequest = call.Request.Clone(ctx)
+		outboundRequest = call.request().Clone(ctx)
 		outboundRequest.URL.Scheme = endpoint.Scheme
 		outboundRequest.URL.Host = endpoint.Host
 	}
@@ -322,7 +348,7 @@ func (c *Client) invoke(
 	if headerSize(response.Header) > int64(c.maxHeaderBytes) {
 		return nil, ErrHeaderTooLarge
 	}
-	if !call.Streaming {
+	if !call.streaming() {
 		if response.ContentLength > c.maxResponseBytes {
 			return nil, ErrResponseTooLarge
 		}
@@ -339,7 +365,7 @@ func (c *Client) invoke(
 	if response.StatusCode >= nethttp.StatusBadRequest {
 		return nil, decodeHTTPError(response)
 	}
-	return call.Decode(decodeContext, response)
+	return call.decode(decodeContext, response)
 }
 
 func dependencyFailure(err error) error {
@@ -396,7 +422,7 @@ func InvokeJSON[T any](
 	if c == nil {
 		return zero, fmt.Errorf("%w: client is nil", ErrInvalidCall)
 	}
-	response, err := c.Invoke(ctx, target, ClientCall{
+	response, err := Invoke(ctx, c, target, ClientCall[any]{
 		Request: request,
 		Decode: func(_ context.Context, response *nethttp.Response) (any, error) {
 			var value T

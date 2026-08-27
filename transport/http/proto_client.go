@@ -47,14 +47,7 @@ func NormalizeClientBaseURL(raw string) (string, error) {
 // body may be empty, "*", or a Protobuf field path. Path/body fields are
 // removed from query parameters. Path fields are also removed from an "*"
 // body and overlay the request on the server.
-func NewProtoRequest(
-	ctx context.Context,
-	baseURL string,
-	method string,
-	pathTemplate string,
-	input proto.Message,
-	body string,
-) (*nethttp.Request, error) {
+func NewProtoRequest(ctx context.Context, baseURL string, method string, pathTemplate string, input proto.Message, body string) (*nethttp.Request, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: context is nil", ErrInvalidCall)
 	}
@@ -106,10 +99,7 @@ func NewProtoRequest(
 
 	var content io.Reader
 	contentType := ""
-	queryExclusions := append(
-		[][]protoreflect.FieldDescriptor(nil),
-		pathFields...,
-	)
+	queryExclusions := append([][]protoreflect.FieldDescriptor(nil), pathFields...)
 	if body == "*" {
 		message := proto.Clone(input)
 		cloned := message.ProtoReflect()
@@ -192,39 +182,19 @@ func NewProtoRequest(
 }
 
 // InvokeProto invokes a generated request and strictly decodes protojson.
-func InvokeProto[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-) (T, error) {
+func InvokeProto[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T) (T, error) {
 	return invokeProto(ctx, client, target, request, factory, "")
 }
 
 // InvokeProtoResponseBody invokes a generated request and reconstructs one
 // google.api.HttpRule.response_body field path into the output message.
-func InvokeProtoResponseBody[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-	responseBody string,
-) (T, error) {
+func InvokeProtoResponseBody[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T, responseBody string) (T, error) {
 	return invokeProto(ctx, client, target, request, factory, responseBody)
 }
 
 // InvokeProtoHTTPBody invokes a generated request and reconstructs a raw
 // google.api.HttpBody response or selected nested HttpBody field.
-func InvokeProtoHTTPBody[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-	responseBody string,
-) (T, error) {
+func InvokeProtoHTTPBody[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T, responseBody string) (T, error) {
 	var zero T
 	if client == nil || request == nil || factory == nil {
 		return zero, fmt.Errorf(
@@ -233,22 +203,19 @@ func InvokeProtoHTTPBody[T proto.Message](
 		)
 	}
 	request.Header.Set("Accept", "*/*")
-	response, err := client.Invoke(ctx, target, ClientCall{
+	response, err := Invoke(ctx, client, target, ClientCall[T]{
 		Request: request,
-		Decode: func(
-			_ context.Context,
-			response *nethttp.Response,
-		) (any, error) {
+		Decode: func(_ context.Context, response *nethttp.Response) (T, error) {
 			message := factory()
 			if isNilProto(message) {
-				return nil, fmt.Errorf(
+				return zero, fmt.Errorf(
 					"%w: proto response factory returned nil",
 					ErrInvalidCall,
 				)
 			}
 			payload, readErr := io.ReadAll(response.Body)
 			if readErr != nil {
-				return nil, readErr
+				return zero, readErr
 			}
 			if unmarshalErr := UnmarshalProtoHTTPBody(
 				payload,
@@ -256,7 +223,7 @@ func InvokeProtoHTTPBody[T proto.Message](
 				responseBody,
 				response.Header.Get("Content-Type"),
 			); unmarshalErr != nil {
-				return nil, unmarshalErr
+				return zero, unmarshalErr
 			}
 			return message, nil
 		},
@@ -264,25 +231,13 @@ func InvokeProtoHTTPBody[T proto.Message](
 	if err != nil {
 		return zero, err
 	}
-	typed, ok := response.(T)
-	if !ok || isNilProto(typed) {
-		return zero, fmt.Errorf(
-			"%w: proto response type %T",
-			ErrInvalidCall,
-			response,
-		)
+	if isNilProto(response) {
+		return zero, fmt.Errorf("%w: proto response is nil", ErrInvalidCall)
 	}
-	return typed, nil
+	return response, nil
 }
 
-func invokeProto[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-	responseBody string,
-) (T, error) {
+func invokeProto[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T, responseBody string) (T, error) {
 	var zero T
 	if client == nil || request == nil || factory == nil {
 		return zero, fmt.Errorf(
@@ -290,29 +245,26 @@ func invokeProto[T proto.Message](
 			ErrInvalidCall,
 		)
 	}
-	response, err := client.Invoke(ctx, target, ClientCall{
+	response, err := Invoke(ctx, client, target, ClientCall[T]{
 		Request: request,
-		Decode: func(
-			_ context.Context,
-			response *nethttp.Response,
-		) (any, error) {
+		Decode: func(_ context.Context, response *nethttp.Response) (T, error) {
 			message := factory()
 			if isNilProto(message) {
-				return nil, fmt.Errorf(
+				return zero, fmt.Errorf(
 					"%w: proto response factory returned nil",
 					ErrInvalidCall,
 				)
 			}
 			payload, readErr := io.ReadAll(response.Body)
 			if readErr != nil {
-				return nil, readErr
+				return zero, readErr
 			}
 			if unmarshalErr := UnmarshalProtoResponseBody(
 				payload,
 				message,
 				responseBody,
 			); unmarshalErr != nil {
-				return nil, unmarshalErr
+				return zero, unmarshalErr
 			}
 			return message, nil
 		},
@@ -320,21 +272,13 @@ func invokeProto[T proto.Message](
 	if err != nil {
 		return zero, err
 	}
-	typed, ok := response.(T)
-	if !ok || isNilProto(typed) {
-		return zero, fmt.Errorf(
-			"%w: proto response type %T",
-			ErrInvalidCall,
-			response,
-		)
+	if isNilProto(response) {
+		return zero, fmt.Errorf("%w: proto response is nil", ErrInvalidCall)
 	}
-	return typed, nil
+	return response, nil
 }
 
-func expandProtoPath(
-	template string,
-	message protoreflect.Message,
-) (string, [][]protoreflect.FieldDescriptor, error) {
+func expandProtoPath(template string, message protoreflect.Message) (string, [][]protoreflect.FieldDescriptor, error) {
 	parsedTemplate, err := httptemplate.Parse(template)
 	if err != nil {
 		return "", nil, fmt.Errorf(
@@ -406,10 +350,7 @@ func joinProtoClientURL(baseURL, rawPath string) (*url.URL, error) {
 	return base, nil
 }
 
-func protoQuery(
-	message protoreflect.Message,
-	excluded [][]protoreflect.FieldDescriptor,
-) (url.Values, error) {
+func protoQuery(message protoreflect.Message, excluded [][]protoreflect.FieldDescriptor) (url.Values, error) {
 	query := make(url.Values)
 	projection := proto.Clone(message.Interface()).ProtoReflect()
 	for _, fieldPath := range excluded {
@@ -432,10 +373,7 @@ func protoQuery(
 	return query, nil
 }
 
-func formatProtoScalar(
-	field protoreflect.FieldDescriptor,
-	value protoreflect.Value,
-) (string, error) {
+func formatProtoScalar(field protoreflect.FieldDescriptor, value protoreflect.Value) (string, error) {
 	if field.Message() != nil {
 		kind := protowkt.QueryKindFor(string(field.Message().FullName()))
 		if kind == protowkt.QueryUnsupported {

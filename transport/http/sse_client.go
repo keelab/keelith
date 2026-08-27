@@ -97,18 +97,18 @@ type SSEClientStream[T any] struct {
 
 // Recv waits for the next event. A normally completed or explicitly closed
 // stream returns io.EOF.
-func (stream *SSEClientStream[T]) Recv() (SSEMessage[T], error) {
-	if stream == nil {
+func (s *SSEClientStream[T]) Recv() (SSEMessage[T], error) {
+	if s == nil {
 		var zero SSEMessage[T]
 		return zero, ErrInvalidSSE
 	}
-	m, open := <-stream.messages
+	m, open := <-s.messages
 	if open {
 		return m, nil
 	}
 	var zero SSEMessage[T]
-	err := stream.terminalError()
-	if err == nil || stream.userClosed.Load() &&
+	err := s.terminalError()
+	if err == nil || s.userClosed.Load() &&
 		(errors.Is(err, errSSEClientClosed) ||
 			errors.Is(err, context.Canceled)) {
 		return zero, io.EOF
@@ -117,18 +117,18 @@ func (stream *SSEClientStream[T]) Recv() (SSEMessage[T], error) {
 }
 
 // Close cancels the subscription and waits for the response body to close.
-func (stream *SSEClientStream[T]) Close(ctx context.Context) error {
-	if stream == nil {
+func (s *SSEClientStream[T]) Close(ctx context.Context) error {
+	if s == nil {
 		return nil
 	}
 	if ctx == nil {
 		return ErrNilContext
 	}
-	stream.userClosed.Store(true)
-	stream.cancel(errSSEClientClosed)
+	s.userClosed.Store(true)
+	s.cancel(errSSEClientClosed)
 	select {
-	case <-stream.done:
-		err := stream.terminalError()
+	case <-s.done:
+		err := s.terminalError()
 		if err == nil ||
 			errors.Is(err, errSSEClientClosed) ||
 			errors.Is(err, context.Canceled) {
@@ -140,18 +140,18 @@ func (stream *SSEClientStream[T]) Close(ctx context.Context) error {
 	}
 }
 
-func (stream *SSEClientStream[T]) finish(err error) {
-	stream.mu.Lock()
-	stream.terminal = err
-	stream.mu.Unlock()
-	close(stream.messages)
-	close(stream.done)
+func (s *SSEClientStream[T]) finish(err error) {
+	s.mu.Lock()
+	s.terminal = err
+	s.mu.Unlock()
+	close(s.messages)
+	close(s.done)
 }
 
-func (stream *SSEClientStream[T]) terminalError() error {
-	stream.mu.Lock()
-	defer stream.mu.Unlock()
-	return stream.terminal
+func (s *SSEClientStream[T]) terminalError() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.terminal
 }
 
 // OpenProtoSSE opens a typed Proto SSE subscription through Client.
@@ -159,14 +159,7 @@ func (stream *SSEClientStream[T]) terminalError() error {
 // The returned stream retains the Client middleware invocation until EOF,
 // cancellation, or Close. The HTTP response has no total body limit; every
 // individual event remains bounded.
-func OpenProtoSSE[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-	optionList ...SSEClientOption,
-) (*SSEClientStream[T], error) {
+func OpenProtoSSE[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T, optionList ...SSEClientOption) (*SSEClientStream[T], error) {
 	return openProtoSSE(
 		ctx,
 		client,
@@ -180,15 +173,7 @@ func OpenProtoSSE[T proto.Message](
 
 // OpenProtoSSEResponseBody opens a typed SSE subscription whose data field
 // contains one google.api.HttpRule.response_body field path value.
-func OpenProtoSSEResponseBody[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-	responseBody string,
-	optionList ...SSEClientOption,
-) (*SSEClientStream[T], error) {
+func OpenProtoSSEResponseBody[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T, responseBody string, optionList ...SSEClientOption) (*SSEClientStream[T], error) {
 	return openProtoSSE(
 		ctx,
 		client,
@@ -200,15 +185,7 @@ func OpenProtoSSEResponseBody[T proto.Message](
 	)
 }
 
-func openProtoSSE[T proto.Message](
-	ctx context.Context,
-	client *Client,
-	target operation.Operation,
-	request *nethttp.Request,
-	factory func() T,
-	responseBody string,
-	optionList ...SSEClientOption,
-) (*SSEClientStream[T], error) {
+func openProtoSSE[T proto.Message](ctx context.Context, client *Client, target operation.Operation, request *nethttp.Request, factory func() T, responseBody string, optionList ...SSEClientOption) (*SSEClientStream[T], error) {
 	if ctx == nil {
 		return nil, ErrNilContext
 	}
@@ -258,13 +235,10 @@ func openProtoSSE[T proto.Message](
 	ready := make(chan error, 1)
 	go func() {
 		connected := false
-		_, err := client.Invoke(streamContext, target, ClientCall{
+		_, err := Invoke(streamContext, client, target, ClientCall[any]{
 			Request:   prepared,
 			Streaming: true,
-			Decode: func(
-				decodeContext context.Context,
-				response *nethttp.Response,
-			) (any, error) {
+			Decode: func(decodeContext context.Context, response *nethttp.Response) (any, error) {
 				if err := validateSSEContentType(response); err != nil {
 					return nil, err
 				}
@@ -313,14 +287,7 @@ func validateSSEContentType(response *nethttp.Response) error {
 	return nil
 }
 
-func consumeProtoSSE[T proto.Message](
-	ctx context.Context,
-	reader io.Reader,
-	factory func() T,
-	responseBody string,
-	maxEventBytes int,
-	target chan<- SSEMessage[T],
-) error {
+func consumeProtoSSE[T proto.Message](ctx context.Context, reader io.Reader, factory func() T, responseBody string, maxEventBytes int, target chan<- SSEMessage[T]) error {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 4*1024), maxEventBytes+512)
 	lastID := ""

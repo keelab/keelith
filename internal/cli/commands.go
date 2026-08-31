@@ -39,6 +39,7 @@ func newRootCommand(runtime *commandRuntime) *cobra.Command {
 		newDoctorCommand(runtime),
 		newGenerateCommand(runtime),
 		newGraphCommand(runtime),
+		newNewCommand(runtime),
 		newVersionCommand(runtime),
 		newWiringCommand(runtime),
 	)
@@ -350,13 +351,46 @@ func validateConfigCommandOptions(options configCommandOptions) error {
 }
 
 func newAddCommand(runtime *commandRuntime) *cobra.Command {
-	command := commandGroup("add", "Add an API, dependency, or application component")
+	command := commandGroup("add", "Add a service, API, dependency, or application component")
 	command.AddCommand(
+		newAddServiceCommand(runtime),
 		newAddAPICommand(runtime),
 		newAddErrorCommand(runtime),
 		newAddDependencyCommand(runtime),
 		newAddComponentCommand(runtime),
 	)
+	return command
+}
+
+func newAddServiceCommand(runtime *commandRuntime) *cobra.Command {
+	options := addOptions{kind: "service", path: ".", format: "text"}
+	command := &cobra.Command{
+		Use:   "service [NAME]",
+		Short: "Add a runnable unary service and generated binding",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(command *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if options.name != "" && options.name != args[0] {
+					return errors.New("service name is specified more than once")
+				}
+				options.name = args[0]
+			}
+			if err := validateAddOptions(options); err != nil {
+				return err
+			}
+			return runCommand(command, runtime, func(ctx context.Context) int {
+				return executeAdd(ctx, options, runtime.stdout, runtime.stderr)
+			})
+		},
+	}
+	bindAddProjectFlags(command, &options)
+	flags := command.Flags()
+	flags.StringVar(&options.name, "name", "", "service short name")
+	flags.StringVar(&options.packageID, "package", "", "protobuf package")
+	flags.StringVar(&options.service, "service", "", "service name")
+	flags.StringVar(&options.method, "method", "", "method name")
+	flags.StringVar(&options.httpMethod, "http-method", "", "HTTP method")
+	flags.StringVar(&options.httpPath, "http-path", "", "literal HTTP path")
 	return command
 }
 
@@ -599,6 +633,11 @@ func validateAddOptions(options addOptions) error {
 		return nil
 	}
 	switch options.kind {
+	case "service":
+		if strings.TrimSpace(options.name) == "" && strings.TrimSpace(options.service) == "" {
+			return errors.New("service name is required (argument or --name)")
+		}
+		return nil
 	case "api":
 		return nil
 	case "error":

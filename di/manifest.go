@@ -73,6 +73,22 @@ func normalizeDescription(description *Description) {
 		provider.Dependencies = append([]string(nil), provider.Dependencies...)
 		sort.Strings(provider.Dependencies)
 	}
+	sort.Slice(description.Components, func(i, j int) bool {
+		if description.Components[i].Name != description.Components[j].Name {
+			return description.Components[i].Name < description.Components[j].Name
+		}
+		return description.Components[i].Kind < description.Components[j].Kind
+	})
+	sort.Slice(description.Roots, func(i, j int) bool {
+		return description.Roots[i].Name < description.Roots[j].Name
+	})
+	sort.Slice(description.Services, func(i, j int) bool {
+		return description.Services[i].Name < description.Services[j].Name
+	})
+	for index := range description.Services {
+		sort.Strings(description.Services[index].Operations)
+		sort.Strings(description.Services[index].Transports)
+	}
 	sort.Slice(description.Providers, func(i, j int) bool {
 		return description.Providers[i].ID < description.Providers[j].ID
 	})
@@ -137,6 +153,40 @@ func validateDescription(description Description) error {
 		if index > 0 && edge == description.Edges[index-1] {
 			return fmt.Errorf("di: manifest edge %s -> %s for %s is duplicated", edge.From, edge.To, edge.Type)
 		}
+	}
+	components := make(map[string]struct{}, len(description.Components))
+	for index, component := range description.Components {
+		nameValid := strings.TrimSpace(component.Name) != "" && strings.TrimSpace(component.Name) == component.Name
+		kindValid := strings.TrimSpace(component.Kind) != "" && strings.TrimSpace(component.Kind) == component.Kind
+		if !nameValid || !kindValid {
+			return fmt.Errorf("di: manifest component %d has invalid name or kind", index)
+		}
+		if _, exists := components[component.Name]; exists {
+			return fmt.Errorf("di: manifest component %q is duplicated", component.Name)
+		}
+		components[component.Name] = struct{}{}
+	}
+	roots := make(map[string]struct{}, len(description.Roots))
+	for index, root := range description.Roots {
+		nameValid := strings.TrimSpace(root.Name) != "" && strings.TrimSpace(root.Name) == root.Name
+		kindValid := strings.TrimSpace(root.Kind) != "" && strings.TrimSpace(root.Kind) == root.Kind
+		if !nameValid || !kindValid {
+			return fmt.Errorf("di: manifest root %d has invalid name or kind", index)
+		}
+		if _, exists := roots[root.Name]; exists {
+			return fmt.Errorf("di: manifest root %q is duplicated", root.Name)
+		}
+		roots[root.Name] = struct{}{}
+	}
+	services := make(map[string]struct{}, len(description.Services))
+	for index, service := range description.Services {
+		if strings.TrimSpace(service.Name) == "" || strings.TrimSpace(service.Name) != service.Name || service.HTTPRoutes < 0 {
+			return fmt.Errorf("di: manifest service %d is invalid", index)
+		}
+		if _, exists := services[service.Name]; exists {
+			return fmt.Errorf("di: manifest service %q is duplicated", service.Name)
+		}
+		services[service.Name] = struct{}{}
 	}
 	return nil
 }

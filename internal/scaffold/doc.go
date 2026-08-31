@@ -1,3 +1,3 @@
-// Package scaffold provides bounded source and contract mutations for existing
-// Go projects. It does not create or own complete application layouts.
+// Package scaffold provides bounded source and contract mutations for Go
+// projects, including the minimal application layout created by the CLI.
 package scaffold

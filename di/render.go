@@ -19,6 +19,16 @@ func RenderText(description Description) string {
 	sort.Slice(providers, func(i, j int) bool { return providers[i].ID < providers[j].ID })
 	var output bytes.Buffer
 	fmt.Fprintf(&output, "root: %s\n", description.Root)
+	for _, root := range description.Roots {
+		fmt.Fprintf(&output, "entrypoint: %s kind=%s", root.Name, root.Kind)
+		if root.Provider != "" {
+			fmt.Fprintf(&output, " provider=%s", root.Provider)
+		}
+		output.WriteByte('\n')
+	}
+	for _, component := range description.Components {
+		fmt.Fprintf(&output, "component: %s kind=%s\n", component.Name, component.Kind)
+	}
 	for _, provider := range providers {
 		fmt.Fprintf(&output, "- %s -> %s", provider.ID, provider.Type)
 		if provider.Name != "" {

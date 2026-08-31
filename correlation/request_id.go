@@ -69,6 +69,21 @@ func RequestID(ctx context.Context) (string, bool) {
 	return value, err == nil
 }
 
+// PropagateRequestID promotes an already validated inbound request ID into
+// the typed context used by downstream handlers and observability. Missing
+// request IDs remain optional; callers that require one should use
+// RequireRequestID instead.
+func PropagateRequestID() middleware.Middleware {
+	return func(next middleware.Handler) middleware.Handler {
+		return func(ctx context.Context, request any) (any, error) {
+			if requestID, ok := RequestID(ctx); ok {
+				ctx = context.WithValue(ctx, requestIDContextKey{}, requestID)
+			}
+			return next(ctx, request)
+		}
+	}
+}
+
 // RequireRequestID rejects calls without exactly one validated request ID and
 // publishes the typed value to downstream handlers.
 func RequireRequestID() middleware.Middleware {

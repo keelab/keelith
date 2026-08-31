@@ -243,6 +243,32 @@ type SyncComponentsResult struct {
 	Unchanged  []string
 }
 
+// WiringComponent describes a validated component declaration for the wiring
+// compiler. It intentionally exposes only stable identity and lifecycle facts.
+type WiringComponent struct {
+	Name     string
+	Kind     string
+	Accessor string
+}
+
+// LoadWiringComponents reads the same validated component declarations used by
+// component synchronization without exposing the manifest's private schema.
+func LoadWiringComponents(ctx context.Context, project string) ([]WiringComponent, error) {
+	root, err := resolveComponentProject(project)
+	if err != nil {
+		return nil, err
+	}
+	components, err := readComponentManifests(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]WiringComponent, 0, len(components))
+	for _, component := range components {
+		result = append(result, WiringComponent{Name: component.manifest.Name, Kind: component.manifest.Kind, Accessor: component.accessor})
+	}
+	return result, nil
+}
+
 type componentManifest struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	Kind          string `json:"kind"`

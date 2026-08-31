@@ -142,6 +142,13 @@ func executeAdd(
 	var created, updated, unchanged []string
 	addedProject := project
 	switch options.kind {
+	case "service":
+		created, updated, unchanged, err = executeAddService(
+			ctx,
+			project,
+			identity.Module,
+			options,
+		)
 	case "api":
 		if options.packageID == "" {
 			options.packageID = strings.ToLower(identifier(serviceVariable)) + ".v1"

@@ -36,16 +36,67 @@ type SyncServicesResult struct {
 	Unchanged    []string
 }
 
+// LoadWiringServices reads generated contract manifests for the wiring
+// compiler without exposing the full contract schema.
+func LoadWiringServices(ctx context.Context, project string) ([]WiringService, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("%w: context is nil", ErrInvalidInput)
+	}
+	root, err := resolveComponentProject(project)
+	if err != nil {
+		return nil, err
+	}
+	manifests, err := readBindingManifests(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	services := make([]WiringService, 0)
+	seenServices := make(map[string]struct{})
+	for _, manifest := range manifests {
+		listeners := make(map[string]map[string]int)
+		for _, listener := range manifest.Listeners {
+			transports := listeners[listener.Service]
+			if transports == nil {
+				transports = make(map[string]int)
+				listeners[listener.Service] = transports
+			}
+			transports[listener.Transport] += len(listener.Routes)
+		}
+		for _, service := range manifest.Services {
+			if _, exists := seenServices[service.Name]; exists {
+				return nil, fmt.Errorf("%w: duplicate service %q across generated manifests", ErrConflict, service.Name)
+			}
+			seenServices[service.Name] = struct{}{}
+			transports := make([]string, 0)
+			routes := 0
+			for transport, count := range listeners[service.Name] {
+				transports = append(transports, transport)
+				routes += count
+			}
+			sort.Strings(transports)
+			operations := make([]string, 0, len(service.Methods))
+			for _, method := range service.Methods {
+				operations = append(operations, method.Operation)
+			}
+			sort.Strings(operations)
+			services = append(services, WiringService{Name: service.Name, Operations: operations, Transports: transports, HTTPRoutes: routes})
+		}
+	}
+	sort.Slice(services, func(i, j int) bool { return services[i].Name < services[j].Name })
+	return services, nil
+}
+
 type serviceBinding struct {
-	fullName           string
-	goName             string
-	apiImportPath      string
-	apiPackage         string
-	implementationPath string
-	implementationDir  string
-	dependencyPath     string
-	componentPath      string
-	hasHTTP            bool
+	fullName               string
+	goName                 string
+	apiImportPath          string
+	apiPackage             string
+	implementationPath     string
+	implementationDir      string
+	generateImplementation bool
+	dependencyPath         string
+	componentPath          string
+	hasHTTP                bool
 }
 
 type dependencyBinding struct {
@@ -136,7 +187,7 @@ func SyncServices(
 	if _, err := contract.NewCatalog(manifests...); err != nil {
 		return SyncServicesResult{}, err
 	}
-	bindings, module, err := serviceBindings(manifests)
+	bindings, module, err := serviceBindings(root, manifests)
 	if err != nil {
 		return SyncServicesResult{}, err
 	}
@@ -202,6 +253,9 @@ func SyncServices(
 		)
 	}
 	for _, binding := range bindings {
+		if !binding.generateImplementation {
+			continue
+		}
 		if cause := context.Cause(ctx); cause != nil {
 			return rollback(cause)
 		}
@@ -358,6 +412,7 @@ func readBoundedFile(filePath string, maximum int64) ([]byte, error) {
 }
 
 func serviceBindings(
+	root string,
 	manifests []contract.Manifest,
 ) ([]serviceBinding, string, error) {
 	bindings := make([]serviceBinding, 0)
@@ -391,15 +446,31 @@ func serviceBindings(
 				strings.ReplaceAll(manifest.Package, ".", "/"),
 				snakeCase(service.GoName),
 			))
+			// A starter project may already have a hand-written implementation
+			// (the service template's Echo implementation is one example). Keep
+			// that implementation as the binding owner until a generated service
+			// root exists. This lets the aggregate registry evolve without
+			// replacing application code during the first `generate` run.
+			implementationImport := module + "/" + implementationPath
+			if service.Name == "echo.v1.EchoService" {
+				generatedPath := filepath.Join(root, filepath.FromSlash(implementationPath), "service.go")
+				legacyPath := filepath.Join(root, "internal", "echo", "service.go")
+				if _, generatedErr := os.Stat(generatedPath); errors.Is(generatedErr, os.ErrNotExist) {
+					if _, legacyErr := os.Stat(legacyPath); legacyErr == nil {
+						implementationImport = module + "/internal/echo"
+					}
+				}
+			}
 			binding := serviceBinding{
-				fullName:           service.Name,
-				goName:             service.GoName,
-				apiImportPath:      manifest.GoImportPath,
-				apiPackage:         manifest.GoPackage,
-				implementationPath: module + "/" + implementationPath,
-				implementationDir:  implementationPath,
-				dependencyPath:     module + "/internal/dependency",
-				componentPath:      module + "/internal/component",
+				fullName:               service.Name,
+				goName:                 service.GoName,
+				apiImportPath:          manifest.GoImportPath,
+				apiPackage:             manifest.GoPackage,
+				implementationPath:     implementationImport,
+				implementationDir:      implementationPath,
+				generateImplementation: implementationImport == module+"/"+implementationPath,
+				dependencyPath:         module + "/internal/dependency",
+				componentPath:          module + "/internal/component",
 			}
 			for _, method := range service.Methods {
 				if method.HTTP != nil {
@@ -546,12 +617,27 @@ func exportDependencyAccessor(packageName, serviceName string) string {
 }
 
 func moduleFromManifest(manifest contract.Manifest) (string, error) {
+	// Older project generators place generated Go under gen/, while the core
+	// module uses api/. Accept both layouts so `keelith generate` remains a
+	// safe follow-up to either generated manifest format.
 	sourceDirectory := path.Dir(manifest.Source)
-	suffix := "/api"
+	suffixes := []string{"/api", "/gen"}
 	if sourceDirectory != "." {
-		suffix += "/" + sourceDirectory
+		for index := range suffixes {
+			suffixes[index] += "/" + sourceDirectory
+		}
 	}
-	if !strings.HasSuffix(manifest.GoImportPath, suffix) {
+	for _, suffix := range suffixes {
+		if !strings.HasSuffix(manifest.GoImportPath, suffix) {
+			continue
+		}
+		module := strings.TrimSuffix(manifest.GoImportPath, suffix)
+		if err := validateModule(module); err != nil {
+			return "", err
+		}
+		return module, nil
+	}
+	if manifest.GoImportPath != "" {
 		return "", fmt.Errorf(
 			"%w: Go import %q does not match source %q",
 			ErrConflict,
@@ -559,11 +645,11 @@ func moduleFromManifest(manifest contract.Manifest) (string, error) {
 			manifest.Source,
 		)
 	}
-	module := strings.TrimSuffix(manifest.GoImportPath, suffix)
-	if err := validateModule(module); err != nil {
-		return "", err
-	}
-	return module, nil
+	return "", fmt.Errorf(
+		"%w: Go import path is empty for source %q",
+		ErrConflict,
+		manifest.Source,
+	)
 }
 
 func renderDependencyClients(
@@ -881,12 +967,13 @@ func renderRegistration(
 	}
 	fmt.Fprintf(
 		&source,
-		"\tappcomponent %q\n\tappdependency %q\n\tkclient %q\n\tfeature %q\n\tidempotency %q\n\ttransporthttp %q\n\t\"google.golang.org/grpc\"\n",
+		"\tappcomponent %q\n\tappdependency %q\n\tkclient %q\n\tfeature %q\n\tidempotency %q\n\tkeelithservice %q\n\ttransporthttp %q\n\t\"google.golang.org/grpc\"\n",
 		module+"/internal/component",
 		module+"/internal/dependency",
 		"github.com/keelab/keelith/client",
 		"github.com/keelab/keelith/feature",
 		"github.com/keelab/keelith/governance/idempotency",
+		"github.com/keelab/keelith/service",
 		"github.com/keelab/keelith/transport/http",
 	)
 	source.WriteString(")\n\n")
@@ -979,6 +1066,27 @@ func renderRegistration(
 	}
 	source.WriteString("\treturn nil\n}\n")
 	source.WriteString(
+		"\n// Bindings creates the complete static service binding set for this project.\n" +
+			"// Implementations remain application-owned; no package-level registration is used.\n" +
+			"func Bindings() []keelithservice.Binding {\n\treturn []keelithservice.Binding{\n",
+	)
+	for index, binding := range bindings {
+		fmt.Fprintf(
+			&source,
+			"\t\tapi%d.Bind%s(implementation%d.New()),\n",
+			index,
+			binding.goName,
+			index,
+		)
+	}
+	source.WriteString("\t}\n}\n")
+	source.WriteString(
+		"\n// NewProfile builds the default profile from the generated bindings.\n" +
+			"func NewProfile(name string) (*keelithservice.Profile, error) {\n" +
+			"\treturn keelithservice.NewProfileFromBindings(name, Bindings()...)\n" +
+			"}\n",
+	)
+	source.WriteString(
 		"\n// IdempotencyRegistrations returns all generated unary request rules.\n" +
 			"func IdempotencyRegistrations() ([]idempotency.Registration, error) {\n" +
 			"\tregistrations := make([]idempotency.Registration, 0)\n",
@@ -1009,7 +1117,7 @@ func renderRegistration(
 	if err != nil {
 		return nil, fmt.Errorf("scaffold: format service registration: %w", err)
 	}
-	if !strings.Contains(string(formatted), module+"/internal/service/") {
+	if !strings.Contains(string(formatted), module+"/internal/") {
 		return nil, fmt.Errorf(
 			"%w: registration has no implementation in module %q",
 			ErrConflict,

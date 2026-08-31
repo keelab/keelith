@@ -19,6 +19,11 @@ var (
 var (
 	modulePattern  = regexp.MustCompile(`^[A-Za-z0-9._~/-]+$`)
 	servicePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	// The generated module path is github.com/keelab/keelith, so versions with
+	// a major component greater than one would require a /vN import path.
+	frameworkVersionPattern = regexp.MustCompile(
+		`^v(?:0|1)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
+	)
 )
 
 func validateModule(module string) error {
@@ -26,6 +31,10 @@ func validateModule(module string) error {
 		!modulePattern.MatchString(module) ||
 		strings.HasPrefix(module, "/") ||
 		strings.HasSuffix(module, "/") ||
+		module == "." ||
+		module == ".." ||
+		strings.HasPrefix(module, "./") ||
+		strings.HasPrefix(module, "../") ||
 		strings.Contains(module, "//") ||
 		strings.Contains(module, "/../") ||
 		strings.Contains(module, "/./") {

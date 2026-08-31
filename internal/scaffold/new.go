@@ -17,7 +17,7 @@ const (
 	// with the first published release that contains the root facade. The
 	// current checkout still uses the last published baseline until that
 	// release is tagged.
-	defaultFrameworkVersion = "v0.0.3"
+	defaultFrameworkVersion = "v0.0.4"
 	defaultGoVersion        = "1.26.6"
 )
 

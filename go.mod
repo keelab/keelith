@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260709200747-435963d16310.1
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.1
 	github.com/coder/websocket v1.8.15
 	github.com/jhump/protoreflect v1.18.0
 	github.com/robfig/cron/v3 v3.0.1

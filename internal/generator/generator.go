@@ -31,7 +31,7 @@ var (
 		"github.com/keelab/keelith/transport/http/continuation",
 	)
 	ssePackage   = protogen.GoImportPath("github.com/keelab/keelith/transport/sse")
-	hertzPackage = protogen.GoImportPath("github.com/keelab/keelith/x/transport/hertz")
+	hertzPackage = protogen.GoImportPath("github.com/keelab/x/transport/hertz")
 )
 
 // Options controls opt-in generated adapters.

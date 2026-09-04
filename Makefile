@@ -9,7 +9,9 @@ FUZZ_TIME ?= 1s
 SOAK_DURATION ?= 24h
 CHAOS_ROUNDS ?= 20
 PROGRAMMABLE_REPORT_DIR ?= $(CURDIR)/artifacts/programmable-runtime
-MODULE_DIRS ?= . contrib x operator examples/programmable-commerce
+MODULE_DIRS ?= .
+CONTRIB_DIR ?= ../contrib
+EXAMPLES_DIR ?= ../examples/programmable-commerce
 
 define run_in_modules
 	@set -eu; \
@@ -56,7 +58,6 @@ programmable-runtime-race:
 		./programmable/component/... \
 		./programmable/topology/... \
 		./programmable/projection/...
-	cd operator && GOWORK=off $(GO) test -race ./...
 
 lint:
 	$(call run_in_modules,run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...)
@@ -75,14 +76,6 @@ conformance:
 		./transport/grpc \
 		./worker \
 		-count=1
-	cd contrib && GOWORK=off $(GO) test \
-		./data/sql/projection/mysql \
-		./data/sqlite/projection \
-		-count=1
-	cd x && GOWORK=off $(GO) test \
-		./transport/hertz \
-		./transport/kitex \
-		-count=1
 
 fuzz-smoke:
 	@for target in ErrorFrame Metadata ConfigMerge HeaderCodec IDLGeneration; do \
@@ -92,17 +85,17 @@ fuzz-smoke:
 integration:
 	docker compose -f test/integration/compose.yaml up -d --wait
 	@trap 'docker compose -f test/integration/compose.yaml down -v' EXIT; \
-		(cd contrib && \
+		(cd "$(CONTRIB_DIR)" && \
 			KEELITH_ETCD_ENDPOINTS=http://127.0.0.1:12379 \
 			GOWORK=off $(GO) test -tags=integration ./... -count=1); \
-		(cd examples/programmable-commerce && \
+		(cd "$(EXAMPLES_DIR)" && \
 			GOWORK=off $(GO) test -tags=integration ./... -count=1)
 
 projection-storage-integration:
 	docker compose -p keelith-projection-storage \
 		-f test/integration/compose.yaml up -d --wait mysql
 	@trap 'docker compose -p keelith-projection-storage -f test/integration/compose.yaml down -v' EXIT; \
-		cd contrib && \
+		cd "$(CONTRIB_DIR)" && \
 		KEELITH_MYSQL_DSN='root:keelith@tcp(127.0.0.1:13306)/keelith?parseTime=true&loc=UTC&multiStatements=true' \
 		GOWORK=off $(GO) test -race -tags=integration \
 			./data/sql/projection/mysql -count=1
@@ -110,7 +103,7 @@ projection-storage-integration:
 programmable-observability-check:
 	GOWORK=off $(GO) test -race -tags=integration \
 		./observability/programmable ./ops -count=1
-	cd contrib && GOWORK=off $(GO) test -race -tags=integration \
+	cd "$(CONTRIB_DIR)" && GOWORK=off $(GO) test -race -tags=integration \
 		./observability/programmable -count=1
 	docker run --rm \
 		-v "$(CURDIR)/deploy/observability/prometheus/programmable-runtime-rules.yaml:/rules.yaml:ro" \
@@ -138,7 +131,7 @@ programmable-runtime-chaos-smoke:
 	@container="$$(docker compose -p keelith-programmable-chaos \
 		-f test/integration/compose.yaml ps -q mysql)"; \
 	trap 'docker compose -p keelith-programmable-chaos -f test/integration/compose.yaml down -v' EXIT; \
-	(cd contrib && \
+	(cd "$(CONTRIB_DIR)" && \
 		KEELITH_CHAOS_MYSQL_DSN='root:keelith@tcp(127.0.0.1:13306)/keelith?parseTime=true&loc=UTC&multiStatements=true' \
 		KEELITH_CHAOS_MYSQL_CONTAINER="$$container" \
 		KEELITH_CHAOS_REPORT="$(PROGRAMMABLE_REPORT_DIR)/chaos-smoke.json" \
@@ -153,7 +146,7 @@ programmable-runtime-chaos:
 		-f test/integration/compose.yaml ps -q mysql)"; \
 	trap 'docker compose -p keelith-programmable-chaos -f test/integration/compose.yaml down -v' EXIT; \
 	for round in $$(seq 1 "$(CHAOS_ROUNDS)"); do \
-		(cd contrib && \
+		(cd "$(CONTRIB_DIR)" && \
 			KEELITH_CHAOS_MYSQL_DSN='root:keelith@tcp(127.0.0.1:13306)/keelith?parseTime=true&loc=UTC&multiStatements=true' \
 			KEELITH_CHAOS_MYSQL_CONTAINER="$$container" \
 			KEELITH_CHAOS_REPORT="$(PROGRAMMABLE_REPORT_DIR)/chaos-$${round}.json" \

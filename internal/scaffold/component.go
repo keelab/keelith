@@ -3511,32 +3511,32 @@ func renderComponentRegistry(
 	}
 	if hasRedis {
 		source.WriteString(
-			"\tredisruntime \"github.com/keelab/keelith/contrib/redis\"\n",
+			"\tredisruntime \"github.com/keelab/contrib/redis\"\n",
 		)
 	}
 	if hasIdempotency {
 		source.WriteString(
-			"\tidempotencyredis \"github.com/keelab/keelith/contrib/idempotency/redis\"\n",
+			"\tidempotencyredis \"github.com/keelab/contrib/idempotency/redis\"\n",
 		)
 	}
 	if hasDistributedRateLimit {
 		source.WriteString(
-			"\tratelimitredis \"github.com/keelab/keelith/contrib/ratelimit/redis\"\n",
+			"\tratelimitredis \"github.com/keelab/contrib/ratelimit/redis\"\n",
 		)
 	}
 	if hasRedisJobOwnership {
 		source.WriteString(
-			"\townershipredis \"github.com/keelab/keelith/contrib/job/ownership/redis\"\n",
+			"\townershipredis \"github.com/keelab/contrib/job/ownership/redis\"\n",
 		)
 	}
 	if hasKubernetesJobOwnership {
 		source.WriteString(
-			"\townershipkubernetes \"github.com/keelab/keelith/contrib/job/ownership/kubernetes\"\n",
+			"\townershipkubernetes \"github.com/keelab/contrib/job/ownership/kubernetes\"\n",
 		)
 	}
 	if hasSQL {
 		source.WriteString(
-			"\tsqlruntime \"github.com/keelab/keelith/contrib/data/sql\"\n",
+			"\tsqlruntime \"github.com/keelab/contrib/data/sql\"\n",
 		)
 	}
 	if hasMySQLDriver {
@@ -3552,12 +3552,12 @@ func renderComponentRegistry(
 	}
 	if hasMySQLOutbox {
 		source.WriteString(
-			"\tmysqloutbox \"github.com/keelab/keelith/contrib/data/sql/outbox/mysql\"\n",
+			"\tmysqloutbox \"github.com/keelab/contrib/data/sql/outbox/mysql\"\n",
 		)
 	}
 	if hasPostgresOutbox {
 		source.WriteString(
-			"\tpostgresoutbox \"github.com/keelab/keelith/contrib/data/sql/outbox\"\n",
+			"\tpostgresoutbox \"github.com/keelab/contrib/data/sql/outbox\"\n",
 		)
 	}
 	if hasInboxMaintenance {
@@ -3567,32 +3567,32 @@ func renderComponentRegistry(
 	}
 	if hasMySQLInbox {
 		source.WriteString(
-			"\tmysqlinbox \"github.com/keelab/keelith/contrib/data/sql/inbox/mysql\"\n",
+			"\tmysqlinbox \"github.com/keelab/contrib/data/sql/inbox/mysql\"\n",
 		)
 	}
 	if hasPostgresInbox {
 		source.WriteString(
-			"\tpostgresinbox \"github.com/keelab/keelith/contrib/data/sql/inbox\"\n",
+			"\tpostgresinbox \"github.com/keelab/contrib/data/sql/inbox\"\n",
 		)
 	}
 	if hasMySQLSaga {
 		source.WriteString(
-			"\tmysqlsaga \"github.com/keelab/keelith/contrib/data/sql/saga/mysql\"\n",
+			"\tmysqlsaga \"github.com/keelab/contrib/data/sql/saga/mysql\"\n",
 		)
 	}
 	if hasPostgresSaga {
 		source.WriteString(
-			"\tpostgressaga \"github.com/keelab/keelith/contrib/data/sql/saga\"\n",
+			"\tpostgressaga \"github.com/keelab/contrib/data/sql/saga\"\n",
 		)
 	}
 	if hasKafka {
 		source.WriteString(
-			"\tkafkaruntime \"github.com/keelab/keelith/contrib/mq/kafka\"\n",
+			"\tkafkaruntime \"github.com/keelab/contrib/mq/kafka\"\n",
 		)
 	}
 	if hasCron {
 		source.WriteString(
-			"\tcronruntime \"github.com/keelab/keelith/contrib/job/cron\"\n",
+			"\tcronruntime \"github.com/keelab/contrib/job/cron\"\n",
 		)
 	}
 	source.WriteString(")\n\n")

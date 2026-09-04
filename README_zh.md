@@ -17,7 +17,7 @@ Keelith 保持模块化：从核心契约开始，按服务需要引入集成，
 - **可组合治理能力**：超时、重试、对冲、熔断、Bulkhead、限流、过载保护、准入控制、降级和异常节点检测。
 - **可编程工作负载**：持久化 continuation、projection、拓扑计划、Saga、Job、Worker、缓存失效与幂等原语。
 - **默认可观测**：结构化日志、指标、追踪、健康检查、诊断和不包含敏感信息的运行时描述。
-- **清晰的扩展边界**：可选适配器位于 `contrib`；CloudWeGo profile 位于独立的 `github.com/keelab/x` 模块。
+- **清晰的扩展边界**：可选适配器位于独立的 `github.com/keelab/contrib` 模块；CloudWeGo profile 位于独立的 `github.com/keelab/x` 模块。
 
 ## 快速开始
 
@@ -52,11 +52,11 @@ go install github.com/keelab/keelith/cmd/protoc-gen-go-keelith@latest
 | 运行时状态 | `config`、`secret`、`cache`、`registry`、`coordination` | 动态配置、密钥、缓存与服务发现 |
 | 工作执行 | `worker`、`job`、`outbox`、`saga`、`programmable/*` | 后台任务、消息、Saga、投影与持久化工作流 |
 | 运维 | `observability`、`ops`、`diagnostics` | 日志、指标、追踪、健康与运维端点 |
-| 集成 | [`contrib`](contrib)、[`operator`](operator)、[`x`](x) | 第三方适配器、Kubernetes 控制面、Hertz 与 Kitex |
+| 集成 | [`contrib`](https://github.com/keelab/contrib)、[`operator`](https://github.com/keelab/operator)、[`x`](https://github.com/keelab/x) | 第三方适配器、Kubernetes 控制面、Hertz 与 Kitex |
 
 ## 传输 Profile
 
-核心模块提供标准 HTTP 与 gRPC 实现。可选的 [`github.com/keelab/x`](x) 模块提供 CloudWeGo 集成：
+核心模块提供标准 HTTP 与 gRPC 实现。可选的 [`github.com/keelab/x`](https://github.com/keelab/x) 模块提供 CloudWeGo 集成：
 
 ```bash
 go get github.com/keelab/x/transport/hertz
@@ -74,18 +74,16 @@ keelith/
 ├── governance/      韧性与流量策略
 ├── programmable/    continuation、projection 与 topology
 ├── observability/   日志、指标、追踪与诊断
-├── contrib/         可选基础设施适配（独立模块）
-├── operator/        Kubernetes TopologyRevision 控制器（独立模块）
-└── x/               Hertz 与 Kitex profile（独立模块）
+└── ...              可选适配器与 profile 维护在独立仓库
 ```
 
 ## 文档与示例
 
 - [API 参考](https://pkg.go.dev/github.com/keelab/keelith)
 - [Keelab examples](https://github.com/keelab/examples)
-- [Contrib 集成](contrib/README.md)
-- [Kubernetes Operator](operator/README.md)
-- [CloudWeGo Profile](x/README.md)
+- [Contrib 集成](https://github.com/keelab/contrib)
+- [Kubernetes Operator](https://github.com/keelab/operator)
+- [CloudWeGo Profile](https://github.com/keelab/x)
 
 ## 开发
 
@@ -94,13 +92,7 @@ go test ./...
 go vet ./...
 ```
 
-`contrib`、`operator` 和 `x` 为独立模块，分别执行：
-
-```bash
-for dir in contrib operator x; do (cd "$dir" && GOWORK=off go test ./... && GOWORK=off go vet ./...); done
-```
-
-部分集成检查需要外部服务或 Kubernetes 测试集群，请先阅读对应模块的 README。
+`contrib`、`operator` 和 `x` 仓库独立进行验证。部分集成检查需要外部服务或 Kubernetes 测试集群，请先阅读对应仓库的 README。
 
 ## 兼容性与安全
 

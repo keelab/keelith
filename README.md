@@ -17,7 +17,7 @@ Keelith is intentionally modular: start with the core contracts, add only the in
 - **Composable governance** — timeout, retry, hedging, circuit breaking, bulkheads, rate limiting, load shedding, admission control, fallback, and outlier detection.
 - **Programmable workloads** — durable continuations, projections, topology plans, sagas, jobs, workers, cache invalidation, and idempotency primitives.
 - **Observable by default** — structured logging, metrics, tracing, health, diagnostics, and secret-free runtime descriptions.
-- **Explicit extension boundaries** — optional adapters live in `contrib`; CloudWeGo profiles live in the separate `github.com/keelab/x` module.
+- **Explicit extension boundaries** — optional adapters live in the separate `github.com/keelab/contrib` module; CloudWeGo profiles live in the separate `github.com/keelab/x` module.
 
 ## Quick start
 
@@ -52,11 +52,11 @@ go install github.com/keelab/keelith/cmd/protoc-gen-go-keelith@latest
 | Runtime state | `config`, `secret`, `cache`, `registry`, `coordination` | Reloadable configuration, secret providers, caching, and discovery |
 | Work execution | `worker`, `job`, `outbox`, `saga`, `programmable/*` | Background jobs, messaging, sagas, projections, and durable workflows |
 | Operations | `observability`, `ops`, `diagnostics` | Logs, metrics, traces, health, and operational endpoints |
-| Integrations | [`contrib`](contrib), [`operator`](operator), [`x`](x) | Third-party adapters, Kubernetes control plane, Hertz, and Kitex |
+| Integrations | [`contrib`](https://github.com/keelab/contrib), [`operator`](https://github.com/keelab/operator), [`x`](https://github.com/keelab/x) | Third-party adapters, Kubernetes control plane, Hertz, and Kitex |
 
 ## Transport profiles
 
-The core module provides standard HTTP and gRPC implementations. The optional [`github.com/keelab/x`](x) module adds CloudWeGo integrations:
+The core module provides standard HTTP and gRPC implementations. The optional [`github.com/keelab/x`](https://github.com/keelab/x) module adds CloudWeGo integrations:
 
 ```bash
 go get github.com/keelab/x/transport/hertz
@@ -74,18 +74,16 @@ keelith/
 ├── governance/      resilience and traffic policies
 ├── programmable/    continuations, projections, and topology
 ├── observability/   logging, metrics, tracing, and diagnostics
-├── contrib/         optional infrastructure adapters (separate module)
-├── operator/        Kubernetes TopologyRevision controller (separate module)
-└── x/               Hertz and Kitex profiles (separate module)
+└── ...              optional adapters and profiles are maintained in separate repositories
 ```
 
 ## Documentation and examples
 
 - [API reference](https://pkg.go.dev/github.com/keelab/keelith)
 - [Keelab examples](https://github.com/keelab/examples)
-- [Contrib integrations](contrib/README.md)
-- [Kubernetes operator](operator/README.md)
-- [CloudWeGo profiles](x/README.md)
+- [Contrib integrations](https://github.com/keelab/contrib)
+- [Kubernetes operator](https://github.com/keelab/operator)
+- [CloudWeGo profiles](https://github.com/keelab/x)
 
 ## Development
 
@@ -94,13 +92,7 @@ go test ./...
 go vet ./...
 ```
 
-Modules under `contrib`, `operator`, and `x` are validated independently:
-
-```bash
-for dir in contrib operator x; do (cd "$dir" && GOWORK=off go test ./... && GOWORK=off go vet ./...); done
-```
-
-Some integration checks require external services or a Kubernetes test cluster; see the module-specific README files before running them.
+The `contrib`, `operator`, and `x` repositories are validated independently. Some integration checks require external services or a Kubernetes test cluster; see the corresponding repository README files before running them.
 
 ## Compatibility and security
 

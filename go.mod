@@ -4,14 +4,14 @@ go 1.26.6
 
 require (
 	github.com/pelletier/go-toml/v2 v2.4.3
-	golang.org/x/sync v0.22.0
+	golang.org/x/sync v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.1
 	github.com/coder/websocket v1.8.15
-	github.com/jhump/protoreflect v1.18.0
+	github.com/jhump/protoreflect v1.18.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	go.opentelemetry.io/otel v1.46.0
@@ -19,7 +19,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/sdk/metric v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
-	golang.org/x/tools v0.49.0
+	golang.org/x/tools v0.50.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688
 	google.golang.org/grpc v1.83.2
@@ -38,8 +38,8 @@ require (
 	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	golang.org/x/mod v0.39.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )

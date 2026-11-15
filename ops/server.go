@@ -100,7 +100,14 @@ func WithMetrics(handler http.Handler) Option {
 	})
 }
 
-// WithPprof explicitly exposes runtime profiles below /debug/pprof/.
+// WithPprof exposes the standard net/http/pprof endpoints below
+// /debug/pprof/, including runtime profiles, CPU profiling, execution traces,
+// command-line information, symbol lookup, and the HTML index.
+//
+// The net/http/pprof package also registers the same endpoints on
+// http.DefaultServeMux during package initialization. Keelith serves the
+// handlers through the isolated Ops mux; applications must not expose
+// http.DefaultServeMux as an unauthenticated public server.
 func WithPprof() Option {
 	return optionFunc(func(options *options) error {
 		options.pprof = true
@@ -108,10 +115,9 @@ func WithPprof() Option {
 	})
 }
 
-// WithCPUProfile explicitly exposes a bounded CPU capture handler at
-// /debug/pprof/profile. The handler shares the Ops diagnostic AccessPolicy but
-// is independent from WithPprof so callers cannot accidentally enable CPU
-// capture by requesting heap/goroutine snapshots.
+// WithCPUProfile replaces the standard CPU profile handler at
+// /debug/pprof/profile. WithPprof already exposes the standard handler; use
+// this option only when the application needs a custom bounded implementation.
 func WithCPUProfile(handler http.Handler) Option {
 	return optionFunc(func(options *options) error {
 		if isNilHandler(handler) {
@@ -201,13 +207,12 @@ func New(registry *health.Registry, optionList ...Option) (*Server, error) {
 	}
 	if settings.pprof {
 		pprofMux := http.NewServeMux()
-		registerPprof(pprofMux)
+		registerPprof(pprofMux, settings.cpuProfile)
 		mux.Handle(
 			"GET /debug/pprof/",
 			protectDiagnostic(settings.accessPolicy, pprofMux),
 		)
-	}
-	if settings.cpuProfile != nil {
+	} else if settings.cpuProfile != nil {
 		mux.Handle(
 			"GET /debug/pprof/profile",
 			protectDiagnostic(

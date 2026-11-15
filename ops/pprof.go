@@ -1,52 +1,22 @@
 package ops
 
 import (
-	"fmt"
 	"net/http"
-	"runtime/pprof"
-	"sort"
-	"strconv"
-	"strings"
+	netpprof "net/http/pprof"
 )
 
-func registerPprof(mux *http.ServeMux) {
-	mux.HandleFunc("GET /debug/pprof/", runtimeProfile)
-}
-
-func runtimeProfile(writer http.ResponseWriter, request *http.Request) {
-	name := strings.TrimPrefix(request.URL.Path, "/debug/pprof/")
-	if name == "" {
-		profiles := pprof.Profiles()
-		sort.Slice(profiles, func(first, second int) bool {
-			return profiles[first].Name() < profiles[second].Name()
-		})
-		writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		for _, profile := range profiles {
-			_, _ = fmt.Fprintf(writer, "%s\t%d\n", profile.Name(), profile.Count())
-		}
-		return
+// registerPprof binds the standard library handlers to the private Ops mux.
+// Importing net/http/pprof also registers the same handlers on
+// http.DefaultServeMux as a package side effect; callers must not expose that
+// global mux as an unauthenticated public server.
+func registerPprof(mux *http.ServeMux, cpuProfile http.Handler) {
+	mux.HandleFunc("GET /debug/pprof/", netpprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", netpprof.Cmdline)
+	if cpuProfile == nil {
+		mux.HandleFunc("GET /debug/pprof/profile", netpprof.Profile)
+	} else {
+		mux.Handle("GET /debug/pprof/profile", cpuProfile)
 	}
-	if strings.Contains(name, "/") {
-		http.NotFound(writer, request)
-		return
-	}
-
-	profile := pprof.Lookup(name)
-	if profile == nil {
-		http.NotFound(writer, request)
-		return
-	}
-	debug := 0
-	if raw := request.URL.Query().Get("debug"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 0 {
-			http.Error(writer, "invalid debug value", http.StatusBadRequest)
-			return
-		}
-		debug = parsed
-	}
-	writer.Header().Set("Content-Type", "application/octet-stream")
-	if err := profile.WriteTo(writer, debug); err != nil {
-		http.Error(writer, "profile unavailable", http.StatusInternalServerError)
-	}
+	mux.HandleFunc("GET /debug/pprof/symbol", netpprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", netpprof.Trace)
 }

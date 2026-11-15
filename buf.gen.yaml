@@ -18,7 +18,7 @@ plugins:
   - local:
       - go
       - run
-      - github.com/keelab/keelith/cmd/protoc-gen-go-keelith
+      - github.com/keelab/keelith-cli/cmd/protoc-gen-go-keelith
     out: api
     opt:
       - paths=source_relative

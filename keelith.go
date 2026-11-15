@@ -146,7 +146,18 @@ func New(optionList ...Option) (application *Application, err error) {
 	var grpcServer *kgrpc.Server
 	var opsServer *ops.Server
 	if settings.opsSet {
-		opsServer, err = ops.New(healthRegistry, settings.opsOptions...)
+		opsOptions := append([]ops.Option(nil), settings.opsOptions...)
+		if len(settings.runtimeStatus) > 0 {
+			catalog := ops.NewRuntimeCatalog()
+			if err := catalog.RegisterAll(settings.runtimeStatus...); err != nil {
+				return nil, closeBuildFailure(telemetry, fmt.Errorf("build runtime status catalog: %w", err))
+			}
+			opsOptions = append(
+				[]ops.Option{ops.WithRuntimeStatus(ops.RuntimeCatalogStatus(catalog))},
+				opsOptions...,
+			)
+		}
+		opsServer, err = ops.New(healthRegistry, opsOptions...)
 		if err != nil {
 			return nil, closeBuildFailure(telemetry, fmt.Errorf("build ops server: %w", err))
 		}

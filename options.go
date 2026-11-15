@@ -58,6 +58,7 @@ type options struct {
 	profile        *service.Profile
 	graph          Graph
 	cleanups       []func(context.Context) error
+	runtimeStatus  []ops.RuntimeStatusRegistration
 	configFile     *configFileSettings
 	configManager  *config.Manager
 }
@@ -500,6 +501,23 @@ func WithHealth(registry *health.Registry) Option {
 			return errors.New("health registry is nil")
 		}
 		options.health = registry
+		return nil
+	})
+}
+
+// WithRuntimeStatus registers generated component status providers. The
+// registrations are exposed through the Ops server when WithOps is enabled;
+// keeping registration separate lets applications opt into diagnostics
+// without changing their listener set.
+func WithRuntimeStatus(registrations ...ops.RuntimeStatusRegistration) Option {
+	snapshot := append([]ops.RuntimeStatusRegistration(nil), registrations...)
+	return optionFunc(func(options *options) error {
+		for index, registration := range snapshot {
+			if registration.Provider == nil {
+				return fmt.Errorf("runtime status registration %d provider is nil", index)
+			}
+		}
+		options.runtimeStatus = append(options.runtimeStatus, snapshot...)
 		return nil
 	})
 }
